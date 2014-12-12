@@ -1,0 +1,430 @@
+<!-- 
+################################################################################
+#
+# File Name: manage_uploads.html
+# Application: templates/admin
+# Description: 
+#
+# Author: Sharief Youssef
+#         sharief.youssef@nist.gov
+#
+#		  Guillaume SOUSA AMARAL
+#		  guillaume.sousa@nist.gov
+#
+# Sponsor: National Institute of Standards and Technology (NIST)
+#
+################################################################################
+-->
+
+{% load staticfiles %}
+
+{% load dajaxice_templatetags %}
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" dir="ltr">
+
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+	<meta name="description" content=""/>
+	<meta name="keywords" content="" />
+	<meta name="author" content="" />
+	<link rel="stylesheet" type="text/css" href="{% static 'resources/css/lib/bootstrap.min.css' %}"  media="screen" />
+	<link rel="stylesheet" type="text/css" href="{% static 'resources/css/style.css' %}" media="screen" />
+	<link rel="stylesheet" type="text/css" href="{% static 'resources/css/style.add.css' %}" media="screen" />
+	<title>Materials Data Curation System</title>
+
+	<link rel="stylesheet" type="text/css" href="{% static 'resources/css/icons.css' %}" media="screen" />
+
+	<!-- JQuery & JQuery UI -->
+	<script src="{% static 'resources/lib/jquery/jquery-1.11.1.min.js' %}"></script>
+	<script src="{% static 'resources/js/bootstrap.min.js' %}"></script>
+    <link rel="stylesheet" type="text/css" href="{% static 'resources/lib/jquery-ui/themes/smoothness/jquery-ui.css' %}"/>        
+    <script src="{% static 'resources/lib/jquery-ui/themes/smoothness/jquery-ui.js' %}"></script>
+	<script src="{% static 'dajax/jquery.dajax.core.js' %}"></script>
+
+        {% dajaxice_js_import %}
+</head>
+
+<body id="top">
+
+<div id="content-main">
+
+<div id="header-wrapper">
+	<div id="header-wrapper-2">
+		<div class="center-wrapper">
+
+			<div id="header">
+
+
+				<div id="logo">
+
+
+					<h1 id="site-title"><a href="/admin">Materials Data <span>Curation Administration</span></a></h1>
+					<h2 id="site-slogan">
+{% if user.is_authenticated %}
+    Welcome, {{ user.username }}. Thanks for logging in.
+{% else %}
+    Part of the Materials Genome Initiative
+{% endif %}
+</h2>
+				</div>
+
+				<div id="help-wrapper">
+					<div id="help" align="center">
+<nobr>
+{% if user.is_authenticated %}
+    <a href="/logout">Logout</a> 
+{% else %}
+    <a href="/login">Login</a> 
+{% endif %}
+
+<span class="text-separator">|</span> <a href="/my-profile">My Profile</a> <span class="text-separator">|</span> <a href="/help">Help</a> 
+</nobr>
+
+					</div>
+				</div>
+
+			</div>
+
+		</div>
+	</div>
+</div>
+
+<div id="navigation-wrapper">
+	<div id="navigation-wrapper-2">
+		<div class="center-wrapper">
+	
+			<div id="navigation">
+
+				<ul class="tabbed">
+					<li><a href="/">Home</a></li>
+					<li><a href="/admin/user-management">User Management</a></li>
+					<li class="current_page_item"><a href="/admin/xml-schemas">Templates & Types</a></li>
+					<li><a href="/admin/federation-of-queries">Repositories</a></li>
+					<li><a href="/admin/backup-database">Database Management</a></li>
+					<li><a href="/admin/website">Website</a></li>
+				</ul>
+
+				<div class="clearer">&nbsp;</div>
+
+			</div>
+
+		</div>
+	</div>
+</div>
+
+
+
+<div id="subnav-wrapper">
+  <div id="subnav-wrapper-2">
+
+    <div class="center-wrapper">
+      
+      <div id="subnav">
+
+	<ul class="tabbed">
+	  {% if objectType == "Template" %}
+	  	<li class="current_page_item"><a href="/admin/xml-schemas/manage-schemas">Manage Templates</a></li>
+  		<li><a href="/admin/xml-schemas/manage-types">Manage Types</a></li>
+  		<li><a href="/admin/xml-schemas/module-management">Manage Modules</a></li>
+	  {% elif objectType == "Type" %}
+	  	<li><a href="/admin/xml-schemas/manage-schemas">Manage Templates</a></li>
+  		<li class="current_page_item"><a href="/admin/xml-schemas/manage-types">Manage Types</a></li>
+  		<li><a href="/admin/xml-schemas/module-management">Manage Modules</a></li>
+  	  {% else %}
+  	  	<li><a href="/admin/xml-schemas/manage-schemas">Manage Templates</a></li>
+  		<li><a href="/admin/xml-schemas/manage-types">Manage Types</a></li>
+  		<li class="current_page_item"><a href="/admin/xml-schemas/module-management">Manage Modules</a></li>
+	  {% endif %}
+	  </ul>
+
+	<div class="clearer">&nbsp;</div>
+
+	</div>
+
+      </div>
+    </div>
+</div>
+
+
+<div id="content-wrapper">
+	<div class="center-wrapper">
+		
+		<div class="content">
+
+			<div id="featured-wrapper">
+				<div id="featured">
+
+<h1>{{ objectType }} Manager</h1>
+					
+					<div class="clearer">&nbsp;</div>
+
+				</div>
+			</div>
+
+			<div id="main">
+
+<div class="right-side">
+<span class="ctx_menu">
+<div class="icon legend long upload">Upload {{ objectType }}</div>
+</span>
+</div>
+
+		      <div id="model_selection">
+		      
+
+{% if objects %}
+
+<table class="data-table">
+  <tr>
+  	<th>{{ objectType }} name</th>
+    <th>Filename</th>
+    <th>Status</th>
+    <th>Actions</th>
+  </tr>
+
+{% for object, isDeleted in objects.items %}
+  {% cycle 'even' '' as rowcolors silent %}
+  <tr class="{{ rowcolors }}">
+    <td>{{ object.title }}</td>
+    <td>{{ object.filename }}</td>
+
+{% if isDeleted == True %}     
+	<td><span style="color:red;">Deleted</span></td>
+    <td>
+    <div class="icon legend long retrieve" objectType="{{ objectType }}" objectid="{{ object.id }}">Restore {{ objectType }} </div>
+{% else %}
+
+    <td><span style="color:green;">Registered</span></td>
+    <td>
+    <div class="icon legend long version" objectType="{{ objectType }}" objectid="{{ object.id }}">Manage Versions</div>
+    <div class="icon legend long edit" objectType="{{ objectType }}" objectid="{{ object.id }}">Edit Information</div>
+    <div class="icon legend delete" objectType="{{ objectType }}" objectid="{{ object.id }}">Delete {{ objectType }}</div></td>
+
+{% endif %}
+
+  </tr>
+
+{% endfor %}
+
+</table>
+
+{% else %}
+<br>
+There are currently no {{ objectType }} uploaded.  Please click "Upload {{ objectType }}" to the right to add {{ objectType }}.
+<br>
+<br>
+{% endif %}
+
+
+</div>
+
+
+
+<div class="right-side">
+<span class="ctx_menu">
+<div class="icon legend long upload">Upload {{ objectType }}</div>
+</span>
+</div>
+
+			</div>
+
+		</div>
+
+	</div>
+</div>
+
+<div id="footer-wrapper">
+
+	<div class="center-wrapper">
+
+		<div id="footer2">
+
+			<div class="left">
+				<a href="/admin">Home</a> <span class="text-separator">|</span> <a href="/admin/user-management">User Management</a> <span class="text-separator">|</span> <a href="/admin/xml-schemas">Templates & Types</a><span class="text-separator">|</span> <a href="/admin/federation-of-queries">Repositories</a><span class="text-separator">|</span> <a href="/admin/backup-database">Database Management</a> 
+			</div>
+
+			<div class="right">
+				<a href="#">Top ^</a>
+			</div>
+			
+			<div class="clearer">&nbsp;</div>
+
+		</div>
+
+	</div>
+
+</div>
+
+<div id="bottom">
+
+	<div class="center-wrapper">
+
+		<div class="left">
+			&copy; 2012 - {{ request.session.currentYear }} Materials Data Curation System <span class="text-separator">|</span> <a href="/privacy-policy">Privacy Policy</a> <span class="text-separator">|</span> <a href="/terms-of-use">Terms of Use</a> 
+		</div>
+
+		<div class="right">
+			<a href="http://templates.arcsin.se/">Website template</a> by <a href="http://arcsin.se/">Arcsin</a> 
+		</div>
+		
+		<div class="clearer">&nbsp;</div>
+
+	</div>
+
+</div>
+
+
+<script src="{% static 'inc/controllers/js/xsd_mgr.js' %}"></script>
+<script>
+  loadUploadManagerHandler();
+</script>
+
+<div id="dialog-copied-message" title="Copy Successful" style="display:none;">
+<p></p>
+  <p>
+    <span class="ui-icon ui-icon-circle-check" style="float:left; margin:0 7px 10px 0;"></span>
+    {{ objectType }} copied successfully. 
+  </p>
+  <p>
+    Currently using <a href="/view-schema/{{ request.session.currentTemplate }}" target="_new">{{ request.session.currentTemplate }}</a>
+  </p>
+</div>
+
+<div id="dialog-edit-info" title="Edit {{ objectType }} Information" style="display:none;">
+<p>
+<b>{{ objectType }} name:</b> <input type="text" id="edit-name"/><br/>
+<b>Filename:</b> <input type="text" id="edit-filename"/>
+</p>
+</div>
+
+<div id="dialog-upload-message" title="Upload {{ objectType }}" style="display:none;">
+{% if objectType == "Template" %}
+<p>
+Enter {{ objectType }} name: <input type="text" id="object_name" objectType="{{ objectType }}" name="object_name"/>
+</p>
+{% else %}
+<p style="display: none;">
+Enter {{ objectType }} name: <input type="text" id="object_name" objectType="{{ objectType }}" name="object_name"></input>
+</p>
+{% endif %}
+<input type="file" id="files" name="files[]" />
+<output id="list"></output>
+<div id="objectNameErrorMessage"></div>
+
+<script>
+  var files; 
+
+  function errorHandler(evt) {
+    switch(evt.target.error.code) {
+      case evt.target.error.NOT_FOUND_ERR:
+        alert('File Not Found!');
+        break;
+      case evt.target.error.NOT_READABLE_ERR:
+        alert('File is not readable');
+        break;
+      case evt.target.error.ABORT_ERR:
+        break; // noop
+      default:
+        alert('An error occurred reading this file.');
+    };
+  }
+
+  function uploadObjectCallback(data) {
+    console.log('BEGIN uploadObjectCallback');
+
+    Dajax.process(data);
+    console.log('BEGIN [setCurrentModelCallback]');
+
+    $('#model_selection').load(document.URL +  ' #model_selection', function() {
+			  loadUploadManagerHandler();
+    });
+    console.log('END [setCurrentModelCallback]');
+
+    console.log('END uploadObjectCallback');
+  }
+
+  function handleFileUpload(evt) {
+    console.log('BEGIN handleFileUpload(evt)');
+
+    if ($("#object_name").attr("objectType") == "Template" && $("#object_name").val().trim().length == 0) {
+        $('#objectNameErrorMessage').html("<font color=\"red\">Please enter a name</font>");
+        return false;
+    } else {
+        $('#objectNameErrorMessage').html("")
+    }
+    var reader;
+
+    document.getElementById('uploadFile').disabled = true;
+
+    reader = new FileReader();
+    reader.onerror = errorHandler;
+    reader.onabort = function(e) {
+      alert('File read cancelled');
+    };
+    reader.onload = function(e) {
+
+      var objectName = document.getElementById('object_name').value.trim();
+
+      Dajaxice.admin.uploadObject(uploadObjectCallback,{'objectName':objectName,'objectFilename':files[0].name,'objectContent':reader.result, 'objectType': '{{ objectType }}'}); 
+    }
+
+    // Read in the image file as a binary string.
+    reader.readAsText(files[0]);
+
+    console.log('END handleFileUpload(evt)');
+  }
+
+  function handleFileSelect(evt) {
+    files = evt.target.files; // FileList object
+
+    // files is a FileList of File objects. List some properties.
+    var output = [];
+    for (var i = 0, f; f = files[i]; i++) {
+      output.push('<br></li><button id=\'uploadFile\'>Upload</button>');
+    }
+    document.getElementById('list').innerHTML = '<ul>' + output.join('') + '</ul>';
+    document.getElementById('uploadFile').disabled = false;
+    document.getElementById('uploadFile').addEventListener('click', handleFileUpload, false);
+  }
+
+  document.getElementById('files').addEventListener('change', handleFileSelect, false);
+</script>
+</div>
+
+<div id="dialog-deleteconfirm-message" title="Confirm Delete" style="display:none;">
+<p></p>
+  <p>
+    <span class="ui-icon ui-icon-circle-check" style="float:left; margin:0 7px 10px 0;"></span>
+    Are you sure you want to delete <b id="object-to-delete"></b>?
+  </p>
+</div>
+
+<div id="dialog-error-edit" title="Error Edit Information" style="display:none;">
+<p></p>
+  <p>
+    A type with this filename already exists.
+  </p>
+</div>
+
+
+<div id="dialog-upload-error" title="Upload Error" style="display:none;">
+<p></p>
+  <p>
+    <span class="ui-icon ui-icon-circle-close" style="float:left; margin:0 7px 10px 0;"></span>
+    <p>No file selected.</p>
+    <p>Please select a file before trying to upload a schema.</p>
+  </p>
+</div>
+<script>
+// Check for the various File API support.
+if (window.File && window.FileReader && window.FileList && window.Blob) {
+  // Great success! All the File APIs are supported.
+  // alert('The File APIs are fully supported in this browser.');
+} else {
+  alert('The File APIs are not fully supported in this browser.');
+}
+</script>
+
+</body>
+</html>

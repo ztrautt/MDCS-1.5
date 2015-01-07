@@ -1,7 +1,7 @@
 Materials Data Curation System
 ==============================
 
-The Materials Data Curation System (MDCS) allows for the curation of materials data into a repository using predefined templates. The system also allows for browsing and exploring of the materials data using the predefined templates as well.
+The NIST Materials Data Curation System (MDCS) provides a means for capturing, sharing, and transforming materials data into a structured format that is XML based amenable to transformation to other formats. The data are organized using user-selected templates encoded in XML Schema.  These templates are used to create data entry forms.  The documents are saved in anon-relational (NoSQL) database, namely MongoDB.  The data can be searched and retrieved via several means: by a template-driven web-based form, by a SPARQL endpoint query, and by a RESTful API call. The system also enables the interconnection of MDCS repositories for federated searches.    
 
 The software was developed by the National Institute of Standards and Technology (NIST)
 

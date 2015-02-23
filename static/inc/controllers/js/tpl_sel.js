@@ -18,6 +18,7 @@ loadTemplateSelectionControllers = function()
 {
     console.log('BEGIN [loadTemplateSelectionControllers]');
     $('.btn.set-template').on('click', setCurrentTemplate);
+    $('.btn.set-curate-user-template').on('click', setCurrentUserTemplate);   
     console.log('END [loadTemplateSelectionControllers]');
 }
 
@@ -226,6 +227,7 @@ validateXML = function()
 	var xmlString = '';
 	
     xmlString = generateXMLString (rootElement, xmlString);
+    console.log(xmlString);
     
     Dajaxice.curate.validateXMLData(Dajax.process,{'xmlString':xmlString});
 }
@@ -249,30 +251,21 @@ saveXMLDataCallback = function()
  */
 generateXMLString = function(elementObj)
 {
-    console.log('BEGIN [generateXMLString]');
-
     var xmlString="";
 
     var children = elementObj.childNodes;
     for(var i = 0; i < children.length; i++) {
-	console.log(children[i].tagName);
-	if (children[i].nodeType == 1 && children[i].hasAttribute("xmlID")) {
-	    if (children[i].getAttribute("xmlID") == "root") {
-		    xmlString += "<" + children[i].firstChild.innerHTML.trim() + ">"
-		    xmlString += generateXMLString(children[i]);
-		    xmlString += "</" + children[i].firstChild.innerHTML.trim() + ">"
-	    }
-	} else if (children[i].tagName == "UL") {
+    if (children[i].tagName == "UL") {
 	    if (children[i].style.display != "none") {
 		xmlString += generateXMLString(children[i]);
 	    }
 	} else if (children[i].tagName == "LI") {
 		if (! $(children[i]).hasClass("removed") ) {
-		    console.log(children[i].innerHTML);
+
 		    var nobrNode1 = children[i].children[0];
 		    var nobrNode2 = children[i].children[1];
 		    if (nobrNode1.firstChild != null) {
-			console.log(nobrNode1.firstChild.tagName);
+
 			if (nobrNode1.firstChild.nodeValue.trim() != "Choose") {
 			    xmlString += "<" + nobrNode1.firstChild.nodeValue.trim() + ">";
 			    if (nobrNode1.firstChild.nodeValue.trim() == "Table") {
@@ -297,6 +290,7 @@ generateXMLString = function(elementObj)
 		}
 	}
 	else if (children[i].tagName == "DIV" && $(children[i]).hasClass("module") ){
+		console.log($($(children[i]).parent()).find(".moduleResult").html());	
 		xmlString += $($(children[i]).parent()).find(".moduleResult").html();		
 	} 	
 	else if (children[i].tagName == "SELECT") {
@@ -319,8 +313,6 @@ generateXMLString = function(elementObj)
 	    xmlString += generateXMLString(children[i]);
 	}
     }
-    
-    console.log('END [generateXMLString]');
 
     return xmlString
 }
@@ -351,7 +343,7 @@ saveHTMLFormCallback = function(data)
  */
 selectElement = function(divElement)
 {   
-	console.log('BEGIN [selectElement()]');
+	console.log('BEGIN [selectElement('+divElement+')]');
     document.getElementById('chosenElement').innerHTML = "Chosen Element: <b>None</b>";
 
     $(function() {
@@ -369,7 +361,7 @@ selectElement = function(divElement)
 	    }
         });
     });
-	console.log('END [selectElement()]');
+	console.log('END [selectElement('+divElement+')]');
 }
 
 /**
@@ -391,10 +383,11 @@ chooseElement = function(element)
  */
 doSelectElement = function(divElement)
 {
-    console.log('BEGIN [selectElement(' + divElement + ')]');
+    console.log('BEGIN [doSelectElement(' + divElement + ')]');
 
     var selectedElement = document.getElementById('selectedElement').innerHTML;
-    divElement.onclick = function onclick(event) { selectElement(selectedElement,this); }	
+    console.log('[selected Element(' + selectedElement + ')]');
+    divElement.onclick = function onclick(event) { selectElement(this); }	
 	$($(divElement).parent()).children(".moduleDisplay").html("Current Selection: "+selectedElement);
 	//$($(divElement).parent()).children(".moduleResult").html("<element>" + selectedElement + "</element>");
 	$($(divElement).parent()).children(".moduleResult").html(selectedElement);
@@ -402,7 +395,7 @@ doSelectElement = function(divElement)
     // reset for next selection
     document.getElementById('chosenElement').innerHTML = "Chosen Element: <b>None</b>";
 
-    console.log('END [selectElement(' + divElement + ')]');
+    console.log('END [doSelectElement(' + divElement + ')]');
 }
 
 /**
@@ -956,6 +949,23 @@ setCurrentTemplate = function()
     return false;
 }
 
+/**
+ * Set current user defined template
+ * @returns {Boolean}
+ */
+setCurrentUserTemplate = function()
+{
+	var templateName = $(this).parent().parent().children(':first').text();
+	var templateID = $(this).parent().parent().children(':first').attr('templateID');
+	var tdElement = $(this).parent();
+		
+	tdElement.html('<img src="/static/resources/img/ajax-loader.gif" alt="Loading..."/>');
+	$('.btn.set-template').off('click');
+
+    Dajaxice.curate.setCurrentUserTemplate(setCurrentTemplateCallback,{'templateID':templateID});
+
+    return false;
+}
 
 /**
  * Update page when template selected.

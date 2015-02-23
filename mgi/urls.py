@@ -14,6 +14,9 @@
 #
 ################################################################################
 
+from django.conf import settings
+from django.conf.urls.static import static
+
 from django.conf.urls import patterns, include, url
 
 from django.contrib import admin
@@ -61,7 +64,11 @@ urlpatterns = patterns('',
     url(r'^explore/results$', 'mgi.views.explore_results', name='explore-results'),
     url(r'^explore/results/download-results/$', 'mgi.views.explore_download_results', name='explore-download-results'),
     url(r'^explore/sparqlresults$', 'mgi.views.explore_sparqlresults', name='explore-sparqlresults'),
-    url(r'^explore/results/download-sparqlresults/$', 'mgi.views.explore_download_sparqlresults', name='explore-download-sparqlresults'),
+    url(r'^explore/results/download-sparqlresults/$', 'mgi.views.explore_download_sparqlresults', name='explore-download-sparqlresults'),   
+    url(r'^compose/', include('compose.urls')),
+    url(r'^compose/select-template', include('compose.urls')),
+    url(r'^compose/build-template$', 'mgi.views.compose_build_template', name='compose-build-template'),
+    url(r'^compose/download-XSD$', 'mgi.views.compose_downloadxsd', name='compose-downloadxsd'),
     url(r'^all-options', 'mgi.views.all_options', name='all-options'),
     url(r'^browse-all', 'mgi.views.browse_all', name='browse-all'),
     url(r'^login', 'django.contrib.auth.views.login',{'template_name': 'login.html'}),
@@ -75,6 +82,8 @@ urlpatterns = patterns('',
     url(r'^privacy-policy', 'mgi.views.privacy_policy', name='privacy-policy'),
     url(r'^terms-of-use', 'mgi.views.terms_of_use', name='terms-of-use'),
     url(dajaxice_config.dajaxice_url, include('dajaxice.urls')), # django-dajaxice
-)
+)+ static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
 
 urlpatterns += staticfiles_urlpatterns()
+

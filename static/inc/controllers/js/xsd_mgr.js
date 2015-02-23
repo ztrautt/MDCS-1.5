@@ -22,6 +22,7 @@ loadUploadManagerHandler = function()
     $('.version').on('click', manageVersions);    
     $('.delete').on('click', deleteObject);
     $('.upload').on('click', uploadObject);
+    $('.buckets').on('click', manageBuckets);
     console.log('END [loadUploadManagerHandler]');
 }
 
@@ -199,6 +200,18 @@ editInformation = function()
 {
     var objectName = $(this).parent().siblings(':first').text();
     var objectFilename = $(this).parent().siblings(':nth-child(2)').text();
+    var buckets = [] 
+    
+    $(this).parent().siblings(':nth-child(3)').children().each(function(){
+    	buckets.push($(this).attr('bucketid'));
+    });
+    $("#select_edit_buckets").children().each(function(){
+      $(this).prop('selected',false);
+	  if(buckets.indexOf($(this).attr('bucketid')) > -1 ){
+	    $(this).prop('selected',true);
+	  }
+	})
+
     var objectID = $(this).attr("objectid");
     var objectType = $(this).attr("objectType");
     
@@ -212,7 +225,13 @@ editInformation = function()
             	Ok: function() {	
 					var newName = $("#edit-name")[0].value;
 					var newFilename = $("#edit-filename")[0].value;
-					Dajaxice.admin.editInformation(Dajax.process,{'objectid':objectID, 'objectType':objectType, 'newName':newName,'newFilename':newFilename});
+					var newBuckets = [] 				    
+					$("#select_edit_buckets").children().each(function(){
+						if($(this).prop('selected') == true ){
+							newBuckets.push($(this).attr('bucketid'))
+						}
+					})
+					Dajaxice.admin.editInformation(Dajax.process,{'objectid':objectID, 'objectType':objectType, 'newName':newName,'newFilename':newFilename, 'buckets':newBuckets});
                 },
                 Cancel: function() {
                     $( this ).dialog( "close" );
@@ -293,23 +312,68 @@ uploadObject = function()
     document.getElementById('object_name').value = ""
     document.getElementById('files').value = ""
     document.getElementById('list').innerHTML = ""
-    document.getElementById('objectNameErrorMessage').innerHTML = ""
+    document.getElementById('objectUploadErrorMessage').innerHTML = ""
 
     $(function() {
         $( "#dialog-upload-message" ).dialog({
             modal: true,
+            width: 500,
+            open: function(event, ui){
+            	Dajaxice.admin.clearObject(Dajax.process);
+            },
+            close: function(event, ui){
+            	Dajaxice.admin.clearObject(Dajax.process);
+            },
             buttons: {
-		Ok: function() {
-                    $( this ).dialog( "close" );
-                },
-		Cancel: function() {
-                    $( this ).dialog( "close" );
-                }
-	    }
-        });
-    });
+				Cancel: function() {
+		                    $( this ).dialog( "close" );
+		                }
+			    }
+        	});
+    	});
 	
     console.log('END [uploadObject]');
+}
+
+/**
+ * Save a template or a type
+ */
+saveObject = function() 
+{
+	console.log('BEGIN [saveObject]');
+	
+	var buckets = [];
+	$("#select_buckets option:selected").each(function(){
+		buckets.push($(this).attr('bucketid'));
+	});
+	
+	Dajaxice.admin.saveObject(Dajax.process, {"buckets": buckets});
+	console.log('END [saveObject]');
+}
+
+/**
+ * Save a version of a template or a type
+ */
+saveVersion = function() 
+{
+	console.log('BEGIN [saveVersion]');
+
+	
+	Dajaxice.admin.saveVersion(Dajax.process);
+	console.log('END [saveVersion]');
+}
+
+/**
+ * Resolve dependencies
+ */
+resolveDependencies = function()
+{
+	var dependencies = [];
+	
+	$("#dependencies").find(".dependency").each(function(){
+		dependencies.push($($(this)[0].options[$(this)[0].selectedIndex]).attr('objectid'));
+	});    	
+	Dajaxice.admin.resolveDependencies(Dajax.process, {"dependencies":dependencies});
 }
 
 /**
@@ -326,4 +390,67 @@ showErrorEditType = function(){
 		    }
         });
     });
+}
+
+
+/**
+ * Display window to manage buckets
+ */
+manageBuckets = function(){
+	$(function() {
+        $( "#dialog-buckets" ).dialog({
+            modal: true,
+            buttons: {
+			Ok: function() {
+                $( this ).dialog( "close" );
+	          },
+		    }
+        });
+    });
+}
+
+/**
+ * Display window to add a bucket
+ */
+addBucket = function(){
+	$(function() {
+		$('#label_bucket').val('');
+        $( "#dialog-add-bucket" ).dialog({
+            modal: true,
+            buttons: {
+            	Add: function() {
+            		$("#errorAddBucket").html("");
+            		var label = $('#label_bucket').val();
+            		if (label == ""){
+            			$("#errorAddBucket").html("<font color='red'>Please enter a name.</font><br/>");
+            		}else{
+            			Dajaxice.admin.addBucket(Dajax.process, {'label': label});
+            		}                    
+    	          },
+				Cancel: function() {
+	                $( this ).dialog( "close" );
+		          },
+		    }
+        });
+    });	
+}
+
+/**
+ * Display window to delete a bucket
+ */
+deleteBucket = function(bucket_id){
+	$(function() {
+        $( "#dialog-delete-bucket" ).dialog({
+            modal: true,
+            buttons: {
+            	Delete: function() {
+            		Dajaxice.admin.deleteBucket(Dajax.process, {"bucket_id":bucket_id})
+            		$( this ).dialog( "close" );
+            		},
+				Cancel: function() {
+	                $( this ).dialog( "close" );
+		          },
+		    }
+        });
+    });	
 }

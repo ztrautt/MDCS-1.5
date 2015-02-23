@@ -93,6 +93,7 @@
 					<li><a href="/">Home</a></li>
 					<li class="current_page_item"><a href="/curate">Data Curation</a></li>
 					<li><a href="/explore">Data Exploration</a></li>
+					<li><a href="/compose">Composer</a></li>
 				</ul>
 				<div class="clearer">&nbsp;</div>
 
@@ -197,6 +198,39 @@
 
 </table>
 
+<div style="text-align: center; font-size: 18px;">User Defined Templates</div>
+<br/>
+{% if userTemplates %}
+<table class="table table-bordered">
+  <tr>
+    <th>Template name</th>
+    <th width="200">Actions</th>
+  </tr>
+{% for template in userTemplates %}
+  {% cycle 'even' '' as rowcolors silent %}
+  <tr class="{{ rowcolors }}">
+    <td templateID='{{template.id}}'>{{ template.title }}</td>
+
+{% if request.session.currentTemplateID == template.id|stringformat:"s" %} 
+
+    <td><span style="color:green;font-weight:bold">Current template</span></td>
+
+{% else %}
+
+    <td><button class="btn set-curate-user-template" ><i class="icon-plus-sign"></i> Set as current template</button></td>    
+
+{% endif %}
+
+  </tr>  
+
+{% endfor %}
+</table>
+{%else%}
+
+<div style="color:grey;">Create your own templates using the <a href="/compose">Composer</a> and you will be able to use them from this section.</div>
+
+{% endif %}
+
 <div id="dialog-message" title="Template Loaded" style="display:none;">
 <p></p>
   <p>
@@ -297,7 +331,7 @@ verifyTemplateIsSelectedCallback = function(data)
 		<div id="footer2">
 
 			<div class="left">
-				<a href="/">Home</a> <span class="text-separator">|</span> <a href="/curate">Data Curation</a> <span class="text-separator">|</span> <a href="/explore">Data Exploration</a><span class="text-separator">|</span> <a href="/contact">Contact</a> 
+				<a href="/">Home</a> <span class="text-separator">|</span> <a href="/curate">Data Curation</a> <span class="text-separator">|</span> <a href="/explore">Data Exploration</a> <span class="text-separator">|</span> <a href="/compose">Composer</a><span class="text-separator">|</span> <a href="/contact">Contact</a> 
 			</div>
 
 			<div class="right">

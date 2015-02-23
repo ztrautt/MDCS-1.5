@@ -34,8 +34,8 @@ PROJECT_URI = "http://www.example.com/"
 SECRET_KEY = 'ponq)(gd8hm57799)$lup4g9kyvp0l(9)k-3!em7dddn^(y)!5'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
-TEMPLATE_DEBUG = False
+DEBUG = True
+TEMPLATE_DEBUG = True
 
 TEMPLATE_DIRS = [os.path.join(BASE_DIR, 'templates')]
 
@@ -148,13 +148,14 @@ INSTALLED_APPS = (
     'admin',
     'curate',
     'explore',
+    'compose',
     'dajax',
     'dajaxice',
     'rest_framework',  # djangorestframework
     'rest_framework_swagger', #django-rest-swagger for api documentation
     'api', # djangorestframework
 )
-
+ 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.BasicAuthentication',
@@ -241,10 +242,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.6/howto/static-files/
 
+# python manage.py collectstatic gathers all static files in this directory
+# link this directory to static in apache configuration file
+STATIC_ROOT = 'var/www/mgi/static/'
+
+# static files manually added
 STATIC_URL = '/static/'
 
+# static files gathered
 STATICFILES_DIRS = (
-    os.path.join(BASE_DIR, "static"),
+    os.path.join(BASE_DIR, 'static'),
 )
 
 STATICFILES_FINDERS = (
@@ -335,12 +342,13 @@ AUTH_LDAP_GLOBAL_OPTIONS = {
 } 
 
 # Binding to the LDAP
-AUTH_LDAP_SERVER_URI = "ldap://mdcs.org:port"  # ldap server
-AUTH_LDAP_BIND_DN = "cn=user,ou=MDCSUSERS,dc=MDCS,dc=ORG"
-AUTH_LDAP_BIND_PASSWORD = "password"
+AUTH_LDAP_SERVER_URI = "***REMOVED***"  # ldap server
+AUTH_LDAP_BIND_DN = "***REMOVED***"
+AUTH_LDAP_BIND_PASSWORD = "***REMOVED***"
 
 #Search the user from the login inputs
-AUTH_LDAP_USER_SEARCH = LDAPSearch("ou=MDCSUSERS,dc=MDCS,dc=ORG", ldap.SCOPE_SUBTREE, "(uid=%(user)s)")
+AUTH_LDAP_USER_SEARCH = LDAPSearch(***REMOVED***, ldap.SCOPE_SUBTREE, "(uid=%(user)s)")
+# AUTH_LDAP_USER_DN_TEMPLATE = ***REMOVED***
 
 # Get these attributes from the LDAP to create the Django user
 AUTH_LDAP_USER_ATTR_MAP = {

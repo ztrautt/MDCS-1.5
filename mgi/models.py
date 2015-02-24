@@ -75,9 +75,9 @@ class TemplateVersion(Document):
     nbVersions = IntField(required=True)
     isDeleted = BooleanField(required=True)
     
-class Type(Document):
+class Type(Document):    
     title = StringField(required=True)
-    filename = StringField(required=True, unique=True)
+    filename = StringField(required=True)
     content = StringField(required=True)
     typeVersion = StringField(required=False)
     version = IntField(required=False)
@@ -89,11 +89,17 @@ class TypeVersion(Document):
     current = StringField()
     nbVersions = IntField(required=True)
     isDeleted = BooleanField(required=True)
+    
+class MetaSchema(Document):
+    schemaId = StringField(required=True, unique=True)
+    flat_content = StringField(required=True)
+    api_content = StringField(required=True)
 
 class Htmlform(Document):
     title = StringField(required=True)
     schema = StringField(required=True)
     content = StringField(required=True)
+    occurrences = StringField(required=True)
 
 class Xmldata(Document):
     title = StringField(required=True)
@@ -151,6 +157,11 @@ class PrivacyPolicy(Document):
     
 class TermsOfUse(Document):
     content = StringField()
+    
+class Bucket(Document):
+    label = StringField(required=True, unique=True)
+    color = StringField(required=True, unique=True)
+    types = ListField()
 
 def postprocessor(path, key, value):
     if(key == "#text"):

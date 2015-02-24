@@ -30,7 +30,7 @@ from xlrd import open_workbook
 from argparse import ArgumentError
 from cgi import FieldStorage
 import zipfile
-from mgi.models import Template, Database, Htmlform, Xmldata, Hdf5file, QueryResults, SparqlQueryResults, XML2Download, TemplateVersion, Instance, XMLSchema, Request, Module, Type, TypeVersion, SavedQuery, Message, TermsOfUse, PrivacyPolicy
+from mgi.models import Template, Database, Htmlform, Xmldata, Hdf5file, QueryResults, SparqlQueryResults, XML2Download, TemplateVersion, Instance, XMLSchema, Request, Module, Type, TypeVersion, SavedQuery, Message, TermsOfUse, PrivacyPolicy, Bucket
 from bson.objectid import ObjectId
 import lxml.etree as etree
 import os
@@ -358,7 +358,8 @@ def manage_types(request):
     
         context = RequestContext(request, {
             'objects':currentTypes,
-            'objectType': "Type"
+            'objectType': "Type",
+            'buckets': Bucket.objects
             
         })
         request.session['currentYear'] = currentYear()
@@ -492,7 +493,7 @@ def curate_upload_spreadsheet(request):
                     print input_excel
                     book = open_workbook(file_contents=input_excel.read())
                     
-                    root = etree.Element("excel")
+                    root = etree.Element("table")
                     root.set("name", str(input_excel))
                     header = etree.SubElement(root, "headers")
                     values = etree.SubElement(root, "rows")
@@ -511,10 +512,11 @@ def curate_upload_spreadsheet(request):
                                     col = etree.SubElement(row, "column")
                     
                                 col.set("id", str(colIndex))
-                                col.text = str(sheet.cell(rowIndex, colIndex).value)
-                    
+                                col.text = str(sheet.cell(rowIndex, colIndex).value)                    
     
-                    xmlString = etree.tostring(root)                    
+#                     xmlString = etree.tostring(root)
+                    xmlString = etree.tostring(header)
+                    xmlString += etree.tostring(values)
                     
                     request.session['spreadsheetXML'] = xmlString                    
                 except:
@@ -931,6 +933,103 @@ def explore_download_sparqlresults(request):
 
 ################################################################################
 #
+# Function Name: compose(request)
+# Inputs:        request - 
+# Outputs:       Main Page of the Composer Application 
+# Exceptions:    None
+# Description:   Redirects to the main page of the composer
+#                
+################################################################################
+def compose(request):
+    template = loader.get_template('compose.html')
+    context = RequestContext(request, {
+        '': '',
+    })
+    request.session['currentYear'] = currentYear()
+    if request.user.is_authenticated():
+        return HttpResponse(template.render(context))
+    else:
+        if 'loggedOut' in request.session:
+            del request.session['loggedOut']
+        request.session['next'] = '/compose'
+        return redirect('/login')
+
+################################################################################
+#
+# Function Name: compose_select_template(request)
+# Inputs:        request - 
+# Outputs:       Main Page of Composer Application
+# Exceptions:    None
+# Description:   Page that allows to select a template to start composing
+#
+################################################################################
+def compose_select_template(request):
+    template = loader.get_template('compose.html')
+    context = RequestContext(request, {
+        '': '',
+    })
+    request.session['currentYear'] = currentYear()
+    if request.user.is_authenticated():
+        return HttpResponse(template.render(context))
+    else:
+        if 'loggedOut' in request.session:
+            del request.session['loggedOut']
+        request.session['next'] = '/compose/select-template'
+        return redirect('/login')
+
+################################################################################
+#
+# Function Name: compose_build_template(request)
+# Inputs:        request - 
+# Outputs:       Build Template Page
+# Exceptions:    None
+# Description:   Page that allows to Compose the Template
+#
+################################################################################
+def compose_build_template(request):
+    template = loader.get_template('compose_build_template.html')
+    request.session['currentYear'] = currentYear()
+    if request.user.is_authenticated():
+               
+        # 1) user types: list of ids
+        userTypes = []
+        for user_type in Type.objects(user=request.user.id):
+            userTypes.append(user_type)
+                       
+        # 2) buckets: label -> list of type that are not deleted
+        # 3) nobuckets: list of types that are not assigned to a specific bucket
+        bucketsTypes = dict()        
+        nobucketsTypes = []
+        
+        buckets = Bucket.objects
+        
+        for type_version in TypeVersion.objects():
+            if type_version.isDeleted == False:
+                hasBucket = False
+                for bucket in buckets:
+                    if str(type_version.id) in bucket.types:
+                        if bucket not in bucketsTypes.keys():
+                            bucketsTypes[bucket] = []
+                        bucketsTypes[bucket].append(Type.objects.get(pk=type_version.current))
+                        hasBucket = True
+                if hasBucket == False:
+                    nobucketsTypes.append(Type.objects.get(pk=type_version.current))
+        
+        context = RequestContext(request, {
+           'bucketsTypes': bucketsTypes,
+           'nobucketsTypes': nobucketsTypes,
+           'userTypes': userTypes,
+        })
+        
+        return HttpResponse(template.render(context))
+    else:
+        if 'loggedOut' in request.session:
+            del request.session['loggedOut']
+        request.session['next'] = '/compose/build-template'
+        return redirect('/login')
+
+################################################################################
+#
 # Function Name: all_options(request)
 # Inputs:        request - 
 # Outputs:       All Options Page
@@ -1148,6 +1247,36 @@ def help(request):
 
 ################################################################################
 #
+# Function Name: compose_downloadxsd(request)
+# Inputs:        request - 
+# Outputs:       XSD representation of the current data instance
+# Exceptions:    None
+# Description:   Returns an XSD representation of the current data instance.
+#                Used when user wants to download the XML file.
+#
+################################################################################
+def compose_downloadxsd(request):
+    if request.user.is_authenticated():                  
+        xml2downloadID = request.GET.get('id','')
+        xmlDataObject = XML2Download.objects.get(pk=xml2downloadID)
+        
+
+        xmlStringEncoded = xmlDataObject.xml.encode('utf-8') 
+        fileObj = StringIO(xmlStringEncoded)
+
+        xmlDataObject.delete()
+
+        response = HttpResponse(FileWrapper(fileObj), content_type='application/xml')
+        response['Content-Disposition'] = 'attachment; filename=' + "new_template.xsd"
+        return response
+    else:
+        if 'loggedOut' in request.session:
+            del request.session['loggedOut']
+        request.session['next'] = '/compose'
+        return redirect('/login')
+
+################################################################################
+#
 # Function Name: manage_versions(request)
 # Inputs:        request - 
 # Outputs:       Manage Version Page
@@ -1198,3 +1327,9 @@ def manage_versions(request):
             del request.session['loggedOut']
         request.session['next'] = '/'
         return redirect('/login')
+
+            
+        
+        
+        
+        

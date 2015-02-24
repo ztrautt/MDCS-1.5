@@ -18,6 +18,7 @@ loadTemplateSelectionControllers = function()
 {
     console.log('BEGIN [loadTemplateSelectionControllers]');
     $('.btn.set-explore-template').on('click', setExploreCurrentTemplate);
+    $('.btn.set-explore-user-template').on('click', setExploreCurrentUserTemplate);
     Dajaxice.explore.redirectExploreTabs(Dajax.process);
     console.log('END [loadTemplateSelectionControllers]');
 }
@@ -43,6 +44,23 @@ setExploreCurrentTemplate = function()
     return false;
 }
 
+/**
+ * set the current user template
+ * @returns {Boolean}
+ */
+setExploreCurrentUserTemplate = function()
+{
+    var templateName = $(this).parent().parent().children(':first').text();
+    var templateID = $(this).parent().parent().children(':first').attr('templateID');
+    var tdElement = $(this).parent();
+		
+    tdElement.html('<img src="/static/resources/img/ajax-loader.gif" alt="Loading..."/>');
+    $('.btn.set-template').off('click');
+
+    Dajaxice.explore.setCurrentUserTemplate(setCurrentTemplateCallback,{'templateID':templateID});
+
+    return false;
+}
 
 /**
  * Set template Callback. Updates the template display.

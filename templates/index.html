@@ -81,6 +81,7 @@
 					<li class="current_page_item"><a href="/">Home</a></li>
 					<li><a href="/curate">Data Curation</a></li>
 					<li><a href="/explore">Data Exploration</a></li>
+					<li><a href="/compose">Composer</a></li>
 				</ul>
 
 				<div class="clearer">&nbsp;</div>
@@ -151,6 +152,15 @@
 						<p>Click here to search for Material Data in the repository using flexible queries.</p>
 
 						<div class="clearer">&nbsp;</div>
+						<div class="content-separator"></div>
+						
+						<img src="static/img/edit-big.png" width="64" height="64" alt="" class="left bordered" />
+
+						<h3><a href="compose">Compose a template</a></h3>
+						
+						<p>Click here to compose your own template.</p>
+
+						<div class="clearer">&nbsp;</div>
 
 					</div>
 
@@ -162,9 +172,11 @@
 						<div class="clearer">&nbsp;</div>
 <p>
 						<ul class="nice-list">
-{% for template in templates %}
-							<li><span></span> {{ template.title }}  | {{ template.filename }}</li>
-{% endfor %}
+							{% if templates %}
+								{% for template in templates %}
+								<li><span></span> {{ template.title }}  | {{ template.filename }}</li>
+								{% endfor %}
+							{% endif %}
 						</ul>
 												
 					</div>
@@ -187,7 +199,7 @@
 		<div id="footer2">
 
 			<div class="left">
-				<a href="/">Home</a> <span class="text-separator">|</span> <a href="/curate">Data Curation</a> <span class="text-separator">|</span> <a href="/explore">Data Exploration</a><span class="text-separator">|</span> <a href="/contact">Contact</a> 
+				<a href="/">Home</a> <span class="text-separator">|</span> <a href="/curate">Data Curation</a> <span class="text-separator">|</span> <a href="/explore">Data Exploration</a> <span class="text-separator">|</span> <a href="/compose">Composer</a><span class="text-separator">|</span> <a href="/contact">Contact</a> 
 			</div>
 
 			<div class="right">

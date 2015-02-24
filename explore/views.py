@@ -56,6 +56,7 @@ def index(request):
     
         context = RequestContext(request, {
             'templates':currentTemplates,
+           'userTemplates': Template.objects(user=str(request.user.id)),
         })
         return HttpResponse(template.render(context))
     else:

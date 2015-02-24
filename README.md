@@ -19,6 +19,3 @@ The MDCS allows integration of modules to provide better user interfaces for ent
 -	ConstituentsType
 -	ChemicalElement
 -	Table
-
-<h4>Import</h4>
-The MDCS allows to upload schemas that may contain import statements. Schemas that can be imported in other schemas should be uploaded first in the system. Then, when uploading a schema containing import statements, the value of the schemaLocation attribute of the import statement should match the name of one of the previously uploaded schemas. The schemaLocation attribute should only provide the file name. Neither absolute or relative path would be interpreted as such. 

@@ -5,6 +5,13 @@ The NIST Materials Data Curation System (MDCS) provides a means for capturing, s
 
 The software was developed by the National Institute of Standards and Technology (NIST)
 
+<h3>Installation</h3>
+To install and run the MDCS on your machine:
+- Pick the instruction notes for your operating system, inside the docs folder,
+- Follow the installation instructions,
+- Make sure that the python packages that you are installing, match the versions listed in the document Required-Python-Packages,
+- Recommended Internet Browser: Mozilla Firefox.
+
 <h3>Disclaimer</h3>
 
 The XML-based schemas provided with the Materials Data Curator are examples of schemas that may be written to represent different aspects of materials data and to demonstrate some of the features that may be used within an XML schema (i.e. including tabular data or composition selection using the periodic table). The schemas do not represent “standard” metadata representations and are specifically release as “as is,” and as such NIST makes no warrant of any kind on the correctness or accuracy of the content of the schemas, nor the fitness of the schemas for any purpose and accepts any liability or responsibility for the consequences of the schemas use or misuse by anyone. 

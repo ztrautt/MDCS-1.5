@@ -342,13 +342,12 @@ AUTH_LDAP_GLOBAL_OPTIONS = {
 } 
 
 # Binding to the LDAP
-AUTH_LDAP_SERVER_URI = "***REMOVED***"  # ldap server
-AUTH_LDAP_BIND_DN = "***REMOVED***"
-AUTH_LDAP_BIND_PASSWORD = "***REMOVED***"
+AUTH_LDAP_SERVER_URI = ""  # ldap server
+AUTH_LDAP_BIND_DN = ""
+AUTH_LDAP_BIND_PASSWORD = ""
 
 #Search the user from the login inputs
-AUTH_LDAP_USER_SEARCH = LDAPSearch(***REMOVED***, ldap.SCOPE_SUBTREE, "(uid=%(user)s)")
-# AUTH_LDAP_USER_DN_TEMPLATE = ***REMOVED***
+AUTH_LDAP_USER_SEARCH = LDAPSearch("ou=,dc=,dc=,dc=", ldap.SCOPE_SUBTREE, "(uid=%(user)s)")
 
 # Get these attributes from the LDAP to create the Django user
 AUTH_LDAP_USER_ATTR_MAP = {

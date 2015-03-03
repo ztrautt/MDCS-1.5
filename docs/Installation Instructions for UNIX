@@ -55,8 +55,10 @@ workon mgi
 
 cd <PROJECT PATH>\mdcs
 
+Add MongoDB to your PATH
+
 Run MongoDB:
-mongod --dbpath data/db/
+mongod --dbpath data/db/ --bind_ip 127.0.0.1
 
 For Apache Jena (in a new terminal):
 

@@ -348,7 +348,6 @@ AUTH_LDAP_BIND_PASSWORD = ""
 
 #Search the user from the login inputs
 AUTH_LDAP_USER_SEARCH = LDAPSearch("ou=,dc=,dc=,dc=", ldap.SCOPE_SUBTREE, "(uid=%(user)s)")
-# AUTH_LDAP_USER_DN_TEMPLATE = "ou=NISTUSERS,dc=GENDEV,dc=NIST,dc=GOV"
 
 # Get these attributes from the LDAP to create the Django user
 AUTH_LDAP_USER_ATTR_MAP = {

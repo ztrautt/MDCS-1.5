@@ -61,9 +61,10 @@ Command Example: C:\Users\<username>\workspace\MDCS_PROJECT\mdcs\rdf>java -cp "l
 For MongoDB:
 
 1)	Download Mongo db (http://www.mongodb.org/downloads) and install it in C:.
-2)	In a command prompt :
+2)                              Add MongoDB to your PATH
+3)	In a command prompt :
 c:
-mongod –dbpath PROJECT_PATH\data\db
+mongod --dbpath data/db/ --bind_ip 127.0.0.1
 
 For Mongoengine:
 

@@ -11,7 +11,7 @@ To install and run the MDCS on your machine:
 - Follow the installation instructions,
 - Make sure that the python packages that you are installing, match the versions listed in the document Required-Python-Packages,
 - Recommended Internet Browser: Mozilla Firefox.
-- 
+
 <h3>Deployment</h3>
 To deploy the MDCS, please refer to the following documents:
 - https://docs.djangoproject.com/en/1.6/howto/deployment/

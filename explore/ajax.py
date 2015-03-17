@@ -631,7 +631,6 @@ def executeQuery(request, queryForm, queryBuilder, fedOfQueries):
         else:
             htmlTree = html.fromstring(queryForm)
             query = fieldsToQuery(request, htmlTree)
-            query['schema'] = request.session['exploreCurrentTemplateID']
             request.session['queryExplore'] = query
             json_instances = []
             for instance in instances:

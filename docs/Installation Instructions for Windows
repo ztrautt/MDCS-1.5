@@ -1,8 +1,6 @@
 Installation Instructions (Windows)
 for Materials Data Curation Project
 
-These notes are for requirement 1.A7 of the Product Backlog (http://goo.gl/ce9SNz) 
-
 Setup:
 
 For python:
@@ -34,10 +32,6 @@ mkvirtualenv mgi
 4)	To use the environment:
 workon mgi (the prompt will change and become mgi. You should always see the mgi prompt when installing new packages)
 
-For ZeroMQ:
-
-1)	In a command prompt:
-pip install pyzmq
 
 For Jena:
 
@@ -58,56 +52,13 @@ java -cp “lib/*;.” JenaServers -rdfserver_endpoint “tcp://127.0.0.1:5555�
 
 Command Example: C:\Users\<username>\workspace\MDCS_PROJECT\mdcs\rdf>java -cp "lib/*;." JenaServers -rdfserver_endpoint "tcp://127.0.0.1:5555" -sparqlserver_endpoint "tcp://127.0.0.1:5556"  -tdb_directory "C:\Users\<username>\workspace\MDCS_Project\mdcs\data\ts" -project_uri “http://www.example.com/”
 
-For MongoDB:
 
-1)	Download Mongo db (http://www.mongodb.org/downloads) and install it in C:.
-2)                              Add MongoDB to your PATH
-3)	In a command prompt :
-c:
-mongod --dbpath data/db/ --bind_ip 127.0.0.1
+Configure MongoDB:
+Please follow general instructions provided in the file called MongoDB Configuration.
 
-For Mongoengine:
+Install all required python packages:
 
-1)	In a command prompt :
-pip install mongoengine (http://docs.mongoengine.org/guide/installing.html) 
-
-
-For Django/Dajax/Dajaxice:
-1)	In a command prompt :
-pip install Django (https://docs.djangoproject.com/en/1.6/topics/install/) 
-pip install django-dajax (http://django-dajax.readthedocs.org/en/latest/installation.html) 
-pip install django-dajaxice (http://django-dajaxice.readthedocs.org/en/latest/installation.html) 
-
-Go to C:\Users\<username>\Develop\mgi\Lib\site-packages and modify the following files to make dajaxice work:
-
-Any Python version : 
--	In dajaxice\core\__init__.py :  
-o	Replace :
-•	from Dajaxice 
-o	By :
-•	from .Dajaxice
--	In dajaxice\urls. py
-o	Replace :
-•	from django.conf.urls.defaults import *
-o	By :
-•	from django.conf.urls import patterns, url, include
-
-Python 3.* :
--	In Views.py :
-o	Change safe_dict(d) to :
-
-def safe_dict(d):
-                                """
-                                Recursively clone json structure with UTF-8 dictionary keys
-                                http://www.gossamer-threads.com/lists/python/bugs/684379
-                                """
-                                if isinstance(d, dict):
-                                                return dict([(k, safe_dict(v)) for k, v in d.items()])
-                                elif isinstance(d, list):
-                                                return [safe_dict(x) for x in d]
-                                else:
-                                                return d
-
+Use the file called Required Python Packages to install them in their good version. If you are using a virtual environment, make sure it is activated before starting the installation. Instructions specific to Windows platform can be found below.
 
 
 For ldap:
@@ -118,19 +69,6 @@ b.	In a command prompt:
 cd PATH_TO_django-auth-ldap_FOLDER
 python setup.py install build
 
-
-For Django Rest Framework:
-
-1)	In a command prompt :
-pip install djangorestframework (http://www.django-rest-framework.org/)
-pip install django-rest-framework-mongoengine
-pip install django-rest-swagger
-
-For MS Excel to HDF5 translation/mapping:
-
-1)	In a command prompt :
-pip install xlrd
-
 For lxml:
 
 1)	Download lxml from pypi (https://pypi.python.org/pypi/lxml/2.3)
@@ -139,32 +77,32 @@ a.	Use the Windows link for Python 2.7 : lxml-2.3.win32-py2.7.exe (win32)
 a.	If you use a virtual environment. 
 You can’t change the destination folder set in the installer so you will have to install the package in the specified folder (C:\Python27\Lib\site-packages\) and then copy the lxml directories from C:\Python27\Lib\site-packages\ to %USERPROFILE%\Develop\Envs\mgi\Lib\site-packages.
 
-For xmltodict:
 
-1)	In a command prompt :
-pip install xmltodict
+Running the MDCS for the first time:
 
-For dateutil:
-1)	In a command prompt:
-pip install python-dateutil
+1)	Run mongodb (if not already running). In a command prompt :
+mongod --config /path/to/mdcs/conf/mongodb.conf
 
-For Requests:
-1)	In a command prompt:
-pip install requests
+2)	python manage.py syncdb
+
+Answer yes to:
+You just installed Django's auth system, which means you don't have any superusers defined.
+Would you like to create one now? (yes/no):yes
 
 
-To Run software:
+To Run the software:
 
-1)	Run mongodb. In a command prompt :
-mongod –dbpath PROJECT_PATH\data\db
+1)	Run mongodb (if not already running). In a command prompt :
+mongod --config /path/to/mdcs/conf/mongodb.conf
 
 2)	Run Jena. In a command prompt :
-java -cp “lib/*;.” JenaServers -rdfserver_endpoint “tcp://127.0.0.1:5555” -sparqlserver_endpoint “tcp://127.0.0.1:5556” -tdb_directory <TS PATH> -project_uri <PROJECT URI>
+java -cp “lib/*;.” JenaServers -rdfserver_endpoint “tcp://127.0.0.1:5555” -sparqlserver_endpoint “tcp://127.0.0.1:5556” -tdb_directory <path/to/mdcs/data/ts> -project_uri <”http://www.example.com”>
 
 3)	Run the MDCS. In a command prompt :
 workon mgi
-cd path_to_mdcs_folder
+cd path/to/mdcs
 python manage.py runserver
+
 
 To be able to access the system remotely, instead of using python manage.py runserver, use: python manage.py runserver 0.0.0.0:<port>
 

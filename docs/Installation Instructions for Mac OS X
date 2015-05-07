@@ -1,8 +1,6 @@
 Installation Instructions (MAC OS X)
 for Materials Data Curation System
 
-These notes are for requirement 1.A7 of the Product Backlog (http://goo.gl/ce9SNz) 
-
 For Operating System:
 
 Mac OS X
@@ -45,20 +43,11 @@ mkdir -p $WORKON_HOME
 source ~/usr/local/bin/virtualenvwrapper.sh
 mkvirtualenv mgi
 
-For MongoDB (in a new terminal):
-
-cd ~/Develop/Workspaces/mgi/mdcs/
-
-export WORKON_HOME=~/Develop/Envs
 source ~/usr/local/bin/virtualenvwrapper.sh
 workon mgi
 
-cd <PROJECT PATH>\mdcs
-
-Add MongoDB to your PATH
-
-Run MongoDB:
-mongod --dbpath data/db/ --bind_ip 127.0.0.1
+Configure MongoDB:
+Please follow general instructions provided in the file called MongoDB Configuration.
 
 For Apache Jena (in a new terminal):
 
@@ -73,64 +62,49 @@ There are two options, depending on if you have the Java jar file or source code
 Option 1: Compile the source code and run the jar
 cd <PROJECT PATH>/mdcs/rdf
 javac -classpath "lib/*" RdfServer.java SparqlServer.java JenaServers.java
-java -cp ".:lib/*" JenaServers -rdfserver_endpoint 'tcp://127.0.0.1:5555' -sparqlserver_endpoint 'tcp://127.0.0.1:5556' -tdb_directory '/Users/ssy/Develop/Workspaces/mgi/mdcs/data/ts' -project_uri 'http://www.example.com/'
+java -cp ".:lib/*" JenaServers -rdfserver_endpoint 'tcp://127.0.0.1:5555' -sparqlserver_endpoint 'tcp://127.0.0.1:5556' -tdb_directory '/path/to/mdcs/data/ts' -project_uri 'http://www.example.com/'
 
 Option 2: Run the jar
 cd <PROJECT PATH>/mdcs/rdf
-java -cp ".:lib/*" JenaServers -rdfserver_endpoint 'tcp://127.0.0.1:5555' -sparqlserver_endpoint 'tcp://127.0.0.1:5556' -tdb_directory '/Users/ssy/Develop/Workspaces/mgi/mdcs/data/ts' -project_uri 'http://www.example.com/'
-
-If you get this error, then you need to upgrade your Java to at least version 1.7:
-
-Exception in thread "main" java.lang.UnsupportedClassVersionError: JenaServers : Unsupported major.minor version 52.0
-	at java.lang.ClassLoader.defineClass1(Native Method)
-	at java.lang.ClassLoader.defineClass(ClassLoader.java:634)
-	at java.security.SecureClassLoader.defineClass(SecureClassLoader.java:142)
-	at java.net.URLClassLoader.defineClass(URLClassLoader.java:277)
-	at java.net.URLClassLoader.access$000(URLClassLoader.java:73)
-	at java.net.URLClassLoader$1.run(URLClassLoader.java:212)
-	at java.security.AccessController.doPrivileged(Native Method)
-	at java.net.URLClassLoader.findClass(URLClassLoader.java:205)
-	at java.lang.ClassLoader.loadClass(ClassLoader.java:321)
-	at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:294)
-	at java.lang.ClassLoader.loadClass(ClassLoader.java:266)
-Could not find the main class: JenaServers. Program will exit.
+java -cp ".:lib/*" JenaServers -rdfserver_endpoint 'tcp://127.0.0.1:5555' -sparqlserver_endpoint 'tcp://127.0.0.1:5556' -tdb_directory '/path/to/mdcs/data/ts' -project_uri 'http://www.example.com/'
 
 To query the RDF DB:
-sh fuseki-server --loc=/Users/ssy/Develop/Workaces/mgi2/mgi/mdcs/data/ts /ts
+sh fuseki-server --loc=/path/to/mdcs/data/ts /ts
 
-For Django (in a new terminal):
+Install all required python packages:
+Use the file called Required Python Packages to install them in their good version. If you are using a virtual environment, make sure it is activated before starting the installation. Instructions specific to Mac OS platform can be found below.
 
-cd ~/Develop/Workspaces/mgi/mdcs
-
-export WORKON_HOME=~/Develop/Envs
-source ~/usr/local/bin/virtualenvwrapper.sh
-workon mgi
-
-pip install Django (https://docs.djangoproject.com/en/1.6/topics/install/) 
-pip install mongoengine (http://docs.mongoengine.org/guide/installing.html) 
-pip install django-auth-ldap (http://pythonhosted.org/django-auth-ldap/) 
-pip install django-dajax (http://django-dajax.readthedocs.org/en/latest/installation.html) 
-pip install xlrd (needed for Microsoft Excel to HDF5 translation/mapping)
-pip install xmltodict (https://github.com/martinblech/xmltodict)
-pip install pyzmq (https://github.com/zeromq/pyzmq)
-pip install python-dateutil (https://pypi.python.org/pypi/python-dateutil)
-
+For lxml:
 pip install lxml (http://lxml.de/) 
 If you get the error “clang error: linker command failed”, then run the following command instead:
 STATIC_DEPS=true pip install lxml (http://lxml.de/installation.html)
 
-pip install djangorestframework (http://www.django-rest-framework.org/)
-pip install django-rest-framework-mongoengine (https://pypi.python.org/pypi/django-rest-framework-mongoengine)
-pip install django-rest-swagger (https://github.com/marcgibbons/django-rest-swagger)
+Running the MDCS for the first time:
 
-python manage.py syncdb
+1)	Run mongodb (if not already running). In a command prompt :
+mongod --config /path/to/mdcs/conf/mongodb.conf
+
+2)	python manage.py syncdb
 
 Answer yes to:
 You just installed Django's auth system, which means you don't have any superusers defined.
 Would you like to create one now? (yes/no):yes
 
-Run software:
+
+To Run the software:
+
+1)	Run mongodb (if not already running). In a command prompt :
+mongod --config /path/to/mdcs/conf/mongodb.conf
+
+2)	Run Jena. In a command prompt :
+java -cp “lib/*;.” JenaServers -rdfserver_endpoint “tcp://127.0.0.1:5555” -sparqlserver_endpoint “tcp://127.0.0.1:5556” -tdb_directory <path/to/mdcs/data/ts> -project_uri <”http://www.example.com”>
+
+3)	Run the MDCS. In a command prompt :
+workon mgi
+cd path/to/mdcs
 python manage.py runserver
+
+To be able to access the system remotely, instead of using python manage.py runserver, use: python manage.py runserver 0.0.0.0:<port>
 
 Access:
 

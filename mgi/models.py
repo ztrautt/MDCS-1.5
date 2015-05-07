@@ -14,61 +14,43 @@
 #
 ################################################################################
 
-from django import forms
-from django.db import models
 from mongoengine import *
 
 # Specific to MongoDB ordered inserts
 from collections import OrderedDict
-from pymongo import Connection
 from bson.objectid import ObjectId
 import xmltodict
-import lxml.etree as etree
-from email import email
+from pymongo import MongoClient
+from mgi.settings import MONGODB_URI
 
-# Create your models here.
-
-# Class definitions
-class User(Document):
-    email = StringField(required=True)
-    first_name = StringField(max_length=50)
-    last_name = StringField(max_length=50)
-    
+ 
 class Request(Document):
+    """Represents a request sent by an user to get an account"""
     username = StringField(required=True)
     password = StringField(required=True)
     first_name = StringField(required=True)
     last_name = StringField(required=True)
     email = StringField(required=True)    
 
-class Comment(EmbeddedDocument):
-    content = StringField()
-    name = StringField(max_length=120)
-
-class Post(Document):
-    title = StringField(max_length=120, required=True)
-    author = ReferenceField(User, reverse_delete_rule=CASCADE)
-    tags = ListField(StringField(max_length=30))
-    comments = ListField(EmbeddedDocumentField(Comment))
-
 class Message(Document):
+    """Represents a message sent via the Contact form"""
     name = StringField(max_length=100)
     email = EmailField()
     content = StringField()
     
-class XMLSchema(models.Model):
-    tree = etree.ElementTree
-    
 class Template(Document):
+    """Represents an XML schema template that defines the structure of data for curation"""
     title = StringField(required=True)
     filename = StringField(required=True)
     content = StringField(required=True)
     templateVersion = StringField(required=False)
     version = IntField(required=False)
     hash = StringField(required=True)
-    user = IntField(required=False)
+    user = StringField(required=False)
+    dependencies = ListField(StringField())
     
 class TemplateVersion(Document):
+    """Manages versions of templates"""
     versions = ListField(StringField())
     deletedVersions = ListField(StringField())
     current = StringField()
@@ -76,14 +58,18 @@ class TemplateVersion(Document):
     isDeleted = BooleanField(required=True)
     
 class Type(Document):    
+    """Represents an XML schema type to use to compose XML Schemas"""
     title = StringField(required=True)
     filename = StringField(required=True)
     content = StringField(required=True)
     typeVersion = StringField(required=False)
     version = IntField(required=False)
-    user = IntField(required=False)
+    hash = StringField(required=True)
+    user = StringField(required=False)
+    dependencies = ListField(StringField())
     
 class TypeVersion(Document):
+    """Manages versions of types"""
     versions = ListField(StringField())
     deletedVersions = ListField(StringField())
     current = StringField()
@@ -91,58 +77,51 @@ class TypeVersion(Document):
     isDeleted = BooleanField(required=True)
     
 class MetaSchema(Document):
+    """Stores more information about templates/types"""
     schemaId = StringField(required=True, unique=True)
     flat_content = StringField(required=True)
     api_content = StringField(required=True)
 
 class Htmlform(Document):
+    """Represents an HTML form saved during curation"""
     title = StringField(required=True)
     schema = StringField(required=True)
     content = StringField(required=True)
     occurrences = StringField(required=True)
 
-class Xmldata(Document):
-    title = StringField(required=True)
-    schema = StringField(required=True)
-    content = StringField(required=True)
-
-class Hdf5file(Document):
-    title = StringField(required=True)
-    schema = StringField(required=True)
-    content = StringField(required=True)
-
-class Database(Document):
-    title = StringField(required=True)
-    timestamp = StringField(required=True)
-    content = StringField(required=True)
-
 class Instance(Document):
+    """Represents an instance of a remote MDCS"""
     name = StringField(required=True, unique=True)
     protocol = StringField(required=True) 
     address = StringField(required=True) 
     port = IntField(required=True)
-    user = StringField(required=True)
-    password = StringField(required=True)
-    status = StringField()
+    access_token = StringField(required=True)
+    refresh_token = StringField(required=True)
+    expires = DateTimeField(required=True)
 
 class QueryResults(Document):
+    """Stores results from a query (Query By Example)"""
     results = ListField(required=True) 
     
 class SparqlQueryResults(Document):
+    """Stores results from a query (SPARQL endpoint)"""
     results = StringField(required=True)
     
 class SavedQuery(Document):
+    """Represents a query saved by the user (Query by Example)"""
     user = StringField(required=True)
     template = StringField(required=True)    
     query = StringField(required=True)
     displayedQuery = StringField(required=True)
 
 class ModuleResource(EmbeddedDocument):
+    """Represents a resource file attached to a module"""
     name = StringField(required=True)
     content = StringField(required=True)
     type = StringField(required=True)
 
 class Module(Document):
+    """Represents a module, that will replace an existing input during curation"""
     name = StringField(required=True)
     templates = ListField(StringField())
     tag = StringField(required=True)
@@ -150,20 +129,25 @@ class Module(Document):
     resources = ListField(EmbeddedDocumentField(ModuleResource))  
     
 class XML2Download(Document):
+    """Temporarily stores the content of an XML document to download"""
     xml = StringField(required=True)
     
 class PrivacyPolicy(Document):
+    """Privacy Policy of the MDCS"""
     content = StringField()
     
 class TermsOfUse(Document):
+    """Terms of Use of the MDCS"""
     content = StringField()
     
 class Bucket(Document):
+    """Represents a bucket to store types by domain"""
     label = StringField(required=True, unique=True)
     color = StringField(required=True, unique=True)
     types = ListField()
 
 def postprocessor(path, key, value):
+    """Called after XML to JSON transformation"""
     if(key == "#text"):
         return key, str(value)
     try:
@@ -187,9 +171,9 @@ class Jsondata():
             title = title of the document                                                                                                                                                                                                 
         """
         # create a connection                                                                                                                                                                                                 
-        connection = Connection()
+        client = MongoClient(MONGODB_URI)
         # connect to the db 'mgi'
-        db = connection['mgi']
+        db = client['mgi']
         # get the xmldata collection
         self.xmldata = db['xmldata']
         # create a new dict to keep the mongoengine order                                                                                                                                                                     
@@ -218,9 +202,9 @@ class Jsondata():
              /!\ Doesn't return the same kind of objects as mongoengine.Document.objects()
         """
         # create a connection
-        connection = Connection()
+        client = MongoClient(MONGODB_URI)
         # connect to the db 'mgi'
-        db = connection['mgi']
+        db = client['mgi']
         # get the xmldata collection
         xmldata = db['xmldata']
         # find all objects of the collection
@@ -238,9 +222,9 @@ class Jsondata():
              /!\ Doesn't return the same kind of objects as mongoengine.Document.objects()
         """
         # create a connection
-        connection = Connection()
+        client = MongoClient(MONGODB_URI)
         # connect to the db 'mgi'
-        db = connection['mgi']
+        db = client['mgi']
         # get the xmldata collection
         xmldata = db['xmldata']
         # find all objects of the collection
@@ -255,9 +239,9 @@ class Jsondata():
     def executeQuery(query):
         """queries mongo db and returns results data"""
         # create a connection
-        connection = Connection()
+        client = MongoClient(MONGODB_URI)
         # connect to the db 'mgi'
-        db = connection['mgi']
+        db = client['mgi']
         # get the xmldata collection
         xmldata = db['xmldata']
         # query mongo db
@@ -272,9 +256,9 @@ class Jsondata():
     def executeQueryFullResult(query):
         """queries mongo db and returns results data"""
         # create a connection
-        connection = Connection()
+        client = MongoClient(MONGODB_URI)
         # connect to the db 'mgi'
-        db = connection['mgi']
+        db = client['mgi']
         # get the xmldata collection
         xmldata = db['xmldata']
         # query mongo db
@@ -291,9 +275,9 @@ class Jsondata():
             Returns the object with the given id
         """
         # create a connection
-        connection = Connection()
+        client = MongoClient(MONGODB_URI)
         # connect to the db 'mgi'
-        db = connection['mgi']
+        db = client['mgi']
         # get the xmldata collection
         xmldata = db['xmldata']
         return xmldata.find_one({'_id': ObjectId(postID)})
@@ -304,9 +288,9 @@ class Jsondata():
             Delete the object with the given id
         """
         # create a connection
-        connection = Connection()
+        client = MongoClient(MONGODB_URI)()
         # connect to the db 'mgi'
-        db = connection['mgi']
+        db = client['mgi']
         # get the xmldata collection
         xmldata = db['xmldata']
         xmldata.remove({'_id': ObjectId(postID)})
@@ -317,9 +301,9 @@ class Jsondata():
             Update the object with the given id
         """
         # create a connection
-        connection = Connection()
+        client = MongoClient(MONGODB_URI)
         # connect to the db 'mgi'
-        db = connection['mgi']
+        db = client['mgi']
         # get the xmldata collection
         xmldata = db['xmldata']
         if '_id' in json:

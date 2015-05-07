@@ -97,7 +97,6 @@ class sparqlResultsSerializer(serializers.Serializer):
 # 
 ################################################################################
 class schemaSerializer(MongoEngineModelSerializer):
-    dependencies = serializers.CharField(required=False)
     class Meta:
         model = Template
         exclude = (['templateVersion','version','hash'])
@@ -117,6 +116,7 @@ class templateSerializer(serializers.Serializer):
     templateVersion = serializers.CharField()
     version = serializers.IntegerField()
     hash = serializers.CharField()
+    dependencies = serializers.CharField()
     id = serializers.CharField(required=False)
 
 ################################################################################
@@ -138,10 +138,9 @@ class TemplateVersionSerializer(MongoEngineModelSerializer):
 # 
 ################################################################################
 class typeSerializer(MongoEngineModelSerializer):
-    dependencies = serializers.CharField(required=False)
     class Meta:
         model = Type
-        exclude = (['typeVersion','version'])
+        exclude = (['typeVersion','version','hash'])
 
 ################################################################################
 # 
@@ -167,6 +166,8 @@ class resTypeSerializer(serializers.Serializer):
     content = serializers.CharField()
     typeVersion = serializers.CharField()
     version = serializers.IntegerField()
+    hash = serializers.CharField()
+    dependencies = serializers.CharField()
     id = serializers.CharField(required=False)
   
 ################################################################################
@@ -179,7 +180,23 @@ class resTypeSerializer(serializers.Serializer):
 class instanceSerializer(MongoEngineModelSerializer):
     class Meta:
         model = Instance
-        exclude = (['status'])
+
+################################################################################
+# 
+# Class Name: mewInstanceSerializer
+#
+# Description:   Serializer for new repository instance
+# 
+################################################################################  
+class newInstanceSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    protocol = serializers.CharField()
+    address = serializers.CharField()
+    port = serializers.IntegerField()
+    user = serializers.CharField()
+    password = serializers.CharField()
+    client_id = serializers.CharField()
+    client_secret = serializers.CharField()
 
 ################################################################################
 # 
@@ -193,9 +210,9 @@ class resInstanceSerializer(serializers.Serializer):
     protocol = serializers.CharField()
     address = serializers.CharField()
     port = serializers.IntegerField()
-    user = serializers.CharField()
-    password = serializers.CharField() 
-    status = serializers.CharField()
+    access_token = serializers.CharField()
+    refresh_token = serializers.CharField()
+    expires = serializers.CharField()
     id = serializers.CharField(required=False)
 
 ################################################################################

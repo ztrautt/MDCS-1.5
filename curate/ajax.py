@@ -996,7 +996,6 @@ def duplicate(request):
                     else: 
                         formString += "<li id='" + str(newTagID) + "'>" + textCapitalized
                     
-                    formString += "<li id='" + str(newTagID) + "'>" + textCapitalized
                     formString += "<span id='add"+ str(newTagID[7:]) +"' class=\"icon add\" onclick=\"changeHTMLForm('add',"+str(newTagID[7:])+");\"></span>"
                     formString += "<span id='remove"+ str(newTagID[7:]) +"' class=\"icon remove\" onclick=\"changeHTMLForm('remove',"+str(newTagID[7:])+");\"></span>"            
                     if sequenceChild[0].tag == "{0}complexType".format(namespace):

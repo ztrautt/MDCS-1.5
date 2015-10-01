@@ -20,12 +20,10 @@ from rest_framework import generics
 from rest_framework import status
 from rest_framework.response import Response
 # Models
-from mgi.models import SavedQuery, Jsondata, Template, TemplateVersion, Type, TypeVersion, Instance, MetaSchema
+from mgi.models import SavedQuery, XMLdata, Template, TemplateVersion, Type, TypeVersion, Instance, MetaSchema
 from django.contrib.auth.models import User
 # Serializers
-from api.serializers import savedQuerySerializer, jsonDataSerializer, querySerializer, sparqlQuerySerializer, sparqlResultsSerializer, schemaSerializer, templateSerializer, typeSerializer, resTypeSerializer, TemplateVersionSerializer, TypeVersionSerializer, instanceSerializer, resInstanceSerializer, UserSerializer, insertUserSerializer, resSavedQuerySerializer, updateUserSerializer, newInstanceSerializer
-from explore import sparqlPublisher
-from curate import rdfPublisher
+from api.serializers import savedQuerySerializer, jsonDataSerializer, querySerializer, schemaSerializer, templateSerializer, typeSerializer, resTypeSerializer, TemplateVersionSerializer, TypeVersionSerializer, instanceSerializer, resInstanceSerializer, UserSerializer, insertUserSerializer, resSavedQuerySerializer, updateUserSerializer, newInstanceSerializer
 from lxml import etree
 from django.conf import settings
 import os
@@ -43,13 +41,12 @@ from collections import OrderedDict
 from StringIO import StringIO
 from django.http.response import HttpResponse
 from utils.XSDhash import XSDhash
-from mgi import utils
 from io import BytesIO
 from utils.APIschemaLocator.APIschemaLocator import getSchemaLocation
 from utils.XSDflattenerMDCS.XSDflattenerMDCS import XSDFlattenerMDCS
 from datetime import datetime
 from datetime import timedelta
-
+from mgi import common
 
 ################################################################################
 # 
@@ -251,7 +248,7 @@ def explore(request):
     """
     dataformat = request.QUERY_PARAMS.get('dataformat', None)
 
-    jsonData = Jsondata.objects()
+    jsonData = XMLdata.objects()
     
     if dataformat== None or dataformat=="xml":
         for jsonDoc in jsonData:
@@ -306,7 +303,7 @@ def explore_detail(request):
             content = {'message':'No parameters given.'}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
         else:
-            jsonData = Jsondata.executeQueryFullResult(query)
+            jsonData = XMLdata.executeQueryFullResult(query)
         
             if dataformat== None or dataformat=="xml":
                 for jsonDoc in jsonData:
@@ -339,7 +336,7 @@ def explore_delete(request):
     id: string (ObjectId)
     """        
     id = request.QUERY_PARAMS.get('id', None)
-    
+     
     try:        
         query = dict()
         if id is not None:            
@@ -348,7 +345,7 @@ def explore_delete(request):
             content = {'message':'No id given.'}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
         else:
-            Jsondata.delete(id)
+            XMLdata.delete(id)
             content = {'message':'Data deleted with success.'}
             return Response(content, status=status.HTTP_204_NO_CONTENT)
     except:
@@ -421,7 +418,7 @@ def query_by_example(request):
                     try:
                         query = eval(request.DATA['query'])
                         manageRegexInAPI(query)
-                        instanceResults = instanceResults + Jsondata.executeQueryFullResult(query)                        
+                        instanceResults = instanceResults + XMLdata.executeQueryFullResult(query)                        
                     except:
                         content = {'message':'Bad query: use the following format {\'element\':\'value\'}'}
                         return Response(content, status=status.HTTP_400_BAD_REQUEST)
@@ -449,7 +446,7 @@ def query_by_example(request):
             try:
                 query = eval(request.DATA['query'])
                 manageRegexInAPI(query)
-                results = Jsondata.executeQueryFullResult(query)
+                results = XMLdata.executeQueryFullResult(query)
             
                 if dataformat== None or dataformat=="xml":
                     for jsonDoc in results:
@@ -468,85 +465,7 @@ def query_by_example(request):
         
     return Response(qSerializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-################################################################################
-# 
-# Function Name: sparql_query(request)
-# Inputs:        request - 
-# Outputs:        
-# Exceptions:    None
-# Description:   Submit a SPARQL query to the Jena triplestore
-# 
-################################################################################
-@api_view(['POST'])
-def sparql_query(request):
-    """
-    POST http://localhost/rest/explore/sparql-query
-    POST data query="SELECT * WHERE {?s ?p ?o}" dataformat="xml" repositories="Local,Server1,Server2"
-    """
-    sqSerializer = sparqlQuerySerializer(data=request.DATA)
-    if sqSerializer.is_valid():
-        if 'dataformat' in request.DATA:
-            format = request.DATA['dataformat']
-            if (format.upper() == "TEXT"):
-                query = '0' + request.DATA['query']
-            elif (format.upper() == "XML"):
-                query = '1' + request.DATA['query']
-            elif (format.upper() == "CSV"):
-                query = '2' + request.DATA['query']
-            elif (format.upper() == "TSV"):
-                query = '3' + request.DATA['query']
-            elif (format.upper() == "JSON"):
-                query = '4' + request.DATA['query']
-            else:
-                content = {'message':'Accepted formats: text, xml, csv, tsv, json'}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            query = '0' + request.DATA['query']
-        
-        if 'repositories' in request.DATA:
-            instanceResults = []
-            repositories = request.DATA['repositories'].strip().split(",")
-            if len(repositories) == 0:
-                content = {'message':'Repositories keyword found but the list is empty.'}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                instances = []
-                local = False
-                for repository in repositories:
-                    if repository == "Local":
-                        local = True
-                    else:
-                        try:
-                            instance = Instance.objects.get(name=repository)
-                            instances.append(instance)
-                        except:
-                            content = {'message':'Unknown repository.'}
-                            return Response(content, status=status.HTTP_400_BAD_REQUEST)
-                if local:
-                    instanceResults.append(sparqlPublisher.sendSPARQL(query)) 
-                for instance in instances:
-                    url = instance.protocol + "://" + instance.address + ":" + str(instance.port) + "/rest/explore/sparql-query"
-                    if 'dataformat' in request.DATA:
-                        data = {"query": request.DATA['query'], "dataformat":request.DATA['dataformat']}
-                    else:
-                        data = {"query": request.DATA['query']}
-                    headers = {'Authorization': 'Bearer ' + instance['access_token']}
-                    r = requests.post(url, data=data, headers=headers)      
-                    instanceResultsDict = eval(r.text)
-                    instanceResults.append(instanceResultsDict['content'])
-                    
-                results = dict()
-                results['content'] = instanceResults
-                
-                srSerializer = sparqlResultsSerializer(results)
-                return Response(srSerializer.data, status=status.HTTP_200_OK)
-        else:
-            results = dict()  
-            results['content'] = sparqlPublisher.sendSPARQL(query) 
-            
-            srSerializer = sparqlResultsSerializer(results)
-            return Response(srSerializer.data, status=status.HTTP_200_OK)
-    return Response(sqSerializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
   
 
 ################################################################################
@@ -577,38 +496,19 @@ def curate(request):
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
         
         xmlStr = request.DATA['content']
+        docID = None
         try:
             try:
-                utils.validateXMLDocument(schema.id, xmlStr)
+                common.validateXMLDocument(schema.id, xmlStr)
             except Exception, e:
                 content = {'message':e.message}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
-            jsondata = Jsondata(schemaID = request.DATA['schema'], xml = xmlStr, title = request.DATA['title'])
+            jsondata = XMLdata(schemaID = request.DATA['schema'], xml = xmlStr, title = request.DATA['title'])
             docID = jsondata.save()            
-            
-            xsltPath = os.path.join(settings.SITE_ROOT, 'static/resources/xsl/xml2rdf3.xsl')
-            xslt = etree.parse(xsltPath)
-            root = xslt.getroot()
-            namespace = root.nsmap['xsl']
-            URIparam = root.find("{" + namespace +"}param[@name='BaseURI']") #find BaseURI tag to insert the project URI
-            URIparam.text = settings.PROJECT_URI + str(docID)
-        
-            # SPARQL : transform the XML into RDF/XML
-            transform = etree.XSLT(xslt)
-            # add a namespace to the XML string, transformation didn't work well using XML DOM
-            template = Template.objects.get(pk=schema.id)
-            xmlStr = xmlStr.replace('>',' xmlns="' + settings.PROJECT_URI + template.hash + '">', 1) #TODO: OR schema name...                
-            # domXML.attrib['xmlns'] = projectURI + schemaID #didn't work well
-            domXML = etree.fromstring(xmlStr)
-            domRDF = transform(domXML)
-        
-            # SPARQL : get the rdf string
-            rdfStr = etree.tostring(domRDF)
-        
-            # SPARQL : send the rdf to the triplestore
-            rdfPublisher.sendRDF(rdfStr)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except:
+            if docID is not None:
+                jsondata.delete(docID)
             content = {'message: Unable to insert data.'}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -644,7 +544,7 @@ def add_schema(request):
                 content = {'message':'This is not a valid XML document.' + e.message.replace("'","")}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
             # check that the schema is valid for the MDCS
-            errors = utils.getValidityErrorsForMDCS(xmlTree, "Template")
+            errors = common.getValidityErrorsForMDCS(xmlTree, "Template")
             if len(errors) > 0:
                 content = {'message':'This template is not supported by the current version of the MDCS.', 'errors': errors}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
@@ -1096,7 +996,7 @@ def add_type(request):
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
             
             # check that the schema is valid for the MDCS
-            errors = utils.getValidityErrorsForMDCS(xmlTree, "Type")
+            errors = common.getValidityErrorsForMDCS(xmlTree, "Type")
             if len(errors) > 0:
                 content = {'message':'This type is not supported by the current version of the MDCS.', 'errors': errors}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
@@ -1895,7 +1795,7 @@ def update_user(request):
     if request.user.is_staff is True:
         username = request.QUERY_PARAMS.get('username', None)        
             
-        if id is not None:   
+        if username is not None:   
             try:
                 user = User.objects.get(username=username)        
             except:
@@ -1990,5 +1890,46 @@ def get_dependency(request):
             return response
         except: 
             content={'message':'No dependency could be found with the given id.'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+from mgi import settings as mgi_settings
+import gridfs
+################################################################################
+# 
+# Function Name: get_blob(request)
+# Inputs:        request - 
+# Outputs:        
+# Exceptions:    None
+# Description:   Get a file from its handle
+# 
+################################################################################   
+@api_view(['GET'])
+def get_blob(request):
+    """
+    GET http://localhost/rest/get-blob?id=id
+    """  
+    # TODO: can change to the hash
+    blob_id = request.QUERY_PARAMS.get('id', None)
+    
+    if blob_id is None:
+        content={'message':'No id provided.'}
+        return Response(content, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        try:
+            client = MongoClient(mgi_settings.BLOB_HOSTER_URI)    
+            db = client['mgi']
+            fs = gridfs.GridFS(db)
+            if fs.exists(ObjectId(blob_id)):
+                blob = fs.get(ObjectId(blob_id))
+                response = HttpResponse(blob)
+                response['Content-Disposition'] = 'attachment; filename=' + str(blob.filename)
+                return response
+            else:
+                content={'message':'No file could be found with the given id.'}
+                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        except: 
+            content={'message':'No file could be found with the given id.'}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
         

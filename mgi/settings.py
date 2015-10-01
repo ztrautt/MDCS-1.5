@@ -22,17 +22,13 @@
 
 import os
 
-VERSION = "1.1.1"
+VERSION = "1.2"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-
-#SPARQL project URI
-PROJECT_URI = "http://www.example.com/"
-
 
 
 if DEBUG == True:
@@ -58,6 +54,7 @@ else:
     # https://docs.djangoproject.com/en/1.7/ref/settings/#allowed-hosts
     # ALLOWED_HOSTS = ['<domain>','<server_ip>']
     
+    #os.environ['HTTPS'] = "on"
     # https://docs.djangoproject.com/en/1.7/ref/settings/#csrf-cookie-secure
     # CSRF_COOKIE_SECURE = True
     # https://docs.djangoproject.com/en/1.7/ref/settings/#session-cookie-secure
@@ -79,6 +76,13 @@ MONGO_MGI_USER = "mgi_user"
 MONGO_MGI_PASSWORD = "mgi_password"
 MONGODB_URI = "mongodb://" + MONGO_MGI_USER + ":" + MONGO_MGI_PASSWORD + "@localhost/mgi"
 connect("mgi", host=MONGODB_URI)
+
+# BLOB Hoster module parameters
+BLOB_HOSTER = 'GridFS'
+BLOB_HOSTER_URI = MONGODB_URI
+BLOB_HOSTER_USER = MONGO_MGI_USER
+BLOB_HOSTER_PSWD = MONGO_MGI_PASSWORD
+MDCS_URI = 'http://127.0.0.1:8000'
 
 TEMPLATE_DIRS = [os.path.join(BASE_DIR, 'templates')]
 
@@ -111,6 +115,7 @@ INSTALLED_APPS = (
     'curate',
     'explore',
     'compose',
+    'modules',
     'rest_framework',  # djangorestframework
     'rest_framework_swagger', #django-rest-swagger for api documentation
     'api', # djangorestframework

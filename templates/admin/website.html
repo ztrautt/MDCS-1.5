@@ -1,4 +1,8 @@
-<!-- 
+{% extends "base_featured.html" %}
+{% load staticfiles %}
+
+{% comment %}
+<!--
 ################################################################################
 #
 # File Name: website.html
@@ -15,22 +19,19 @@
 #
 ################################################################################
 -->
-
-{% extends "base.html" %}
-{% load staticfiles %}
+{% endcomment %}
 
 {% block title %}<h1>Website Management</h1>{% endblock %}
 
-{% block menu %}{% include 'admin/menu-admin.html' with active_tab='tab5' %}{% endblock %}
-{% block submenu %}{% include 'admin/submenu-website.html' %}{% endblock %}
+{% block menu %}{% include 'admin/menu/main.html' with active_tab='tab5' %}{% endblock %}
+{% block submenu %}{% include 'admin/menu/submenu/website.html' %}{% endblock %}
 
 
 {% block content%}
-		      
 <div class="left" style="width: 350px">			
 	<div class="clearer">&nbsp;</div>
 	<br/>
-	<img src="/static/img/edit-big.png" width="64" height="64" alt="" class="left bordered" />
+	<img src="{% static 'resources/img/edit-big.png' %}" width="64" height="64" alt="" class="left bordered" />
 	<h3><a href="website/privacy-policy">Privacy Policy</a></h3>
 	<p>Click here to edit the Privacy Policy page of the system.</p>
 	<div class="clearer">&nbsp;</div>
@@ -39,7 +40,7 @@
 <div class="right" style="width: 350px">
 	<div class="clearer">&nbsp;</div>
 	<br/>
-	<img src="/static/img/edit-big.png" width="64" height="64" alt="" class="left bordered" />
+	<img src="{% static 'resources/img/edit-big.png' %}" width="64" height="64" alt="" class="left bordered" />
 	<h3><a href="website/terms-of-use">Terms of Use</a></h3>
 	<p>Click here to edit the Terms of Use page of the system.</p>
 	<div class="clearer">&nbsp;</div>

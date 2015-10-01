@@ -17,7 +17,6 @@
 from rest_framework import serializers
 from rest_framework_mongoengine.serializers import MongoEngineModelSerializer
 from mgi.models import SavedQuery, Template, Type, TemplateVersion, TypeVersion, Instance
-from django.contrib.auth.models import User
 
 ################################################################################
 # 
@@ -66,27 +65,6 @@ class resSavedQuerySerializer(serializers.Serializer):
 ################################################################################
 class querySerializer(serializers.Serializer):
     query = serializers.CharField()
-
-################################################################################
-# 
-# Class Name: sparqlQuerySerializer
-#
-# Description:   Serializer for SPARQL queries
-# 
-################################################################################
-class sparqlQuerySerializer(serializers.Serializer):
-    query = serializers.CharField()
-    format = serializers.CharField(required=False)
-
-################################################################################
-# 
-# Class Name: sparqlResultsSerializer
-#
-# Description:   Serializer for result set of SPARQL queries
-# 
-################################################################################
-class sparqlResultsSerializer(serializers.Serializer):
-    content = serializers.CharField()
 
 
 ################################################################################

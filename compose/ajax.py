@@ -26,6 +26,7 @@ from utils.XSDhash import XSDhash
 from utils.XSDflattenerMDCS.XSDflattenerMDCS import XSDFlattenerMDCS
 from utils.APIschemaLocator.APIschemaLocator import getSchemaLocation
 from urlparse import urlparse
+from mgi import common
 
 # XSL file loading
 import os
@@ -43,10 +44,8 @@ import os
 def set_current_template(request):
     print 'BEGIN def setCurrentTemplate(request)'
 
-    template_filename = request.POST['templateFilename']
     template_id = request.POST['templateID']
 
-    request.session['currentComposeTemplate'] = template_filename
     request.session['currentComposeTemplateID'] = template_id
     request.session.modified = True
 
@@ -96,7 +95,6 @@ def set_current_user_template(request):
     else:
         xmlDocData = templateObject.content
     
-    request.session['currentComposeTemplate'] = templateObject.title
     request.session['xmlTemplateCompose'] = xmlDocData
     request.session['newXmlTemplateCompose'] = xmlDocData
 
@@ -157,7 +155,7 @@ def is_new_template(request):
 def download_template(request):
     xmlString = request.session['newXmlTemplateCompose']
     
-    xml2download = XML2Download(xml=xmlString).save()
+    xml2download = XML2Download(xml=xmlString, title='schema.xsd').save()
     xml2downloadID = str(xml2download.id)
     
     response_dict = {'xml2downloadID': xml2downloadID}
@@ -186,12 +184,15 @@ def load_xml(request):
     transform = etree.XSLT(xslt)
     xmlTree = ""
     if (xmlString != ""):
-        request.session['namespacesCompose'] = get_namespaces(BytesIO(str(xmlString)))
+        request.session['namespacesCompose'] = common.get_namespaces(BytesIO(str(xmlString)))
         for prefix, url in request.session['namespacesCompose'].items():
             if (url == "{http://www.w3.org/2001/XMLSchema}"):            
                 request.session['defaultPrefixCompose'] = prefix
                 break
         dom = etree.parse(BytesIO(xmlString.encode('utf-8')))
+        annotations = dom.findall(".//{http://www.w3.org/2001/XMLSchema}annotation")
+        for annotation in annotations:
+            annotation.getparent().remove(annotation)
         newdom = transform(dom)
         xmlTree = str(newdom)
     
@@ -203,20 +204,6 @@ def load_xml(request):
             
     response_dict = {'XMLHolder': xmlTree}
     return HttpResponse(json.dumps(response_dict), content_type='application/javascript')
-
-
-def get_namespaces(file):
-    "Reads and returns the namespaces in the schema tag"
-    events = "start", "start-ns"
-    ns = {}
-    for event, elem in etree.iterparse(file, events):
-        if event == "start-ns":
-            if elem[0] in ns and ns[elem[0]] != elem[1]:
-                raise Exception("Duplicate prefix with different URI found.")
-            ns[elem[0]] = "{%s}" % elem[1]
-        elif event == "start":
-            break
-    return ns
 
 
 ################################################################################
@@ -241,7 +228,7 @@ def insert_element_sequence(request):
     
     # get the type to add
     includedType = Type.objects.get(pk=type_id)
-    typeTree = etree.fromstring(includedType.content)
+    typeTree = etree.XML(str(includedType.content))
     elementType = typeTree.find("{http://www.w3.org/2001/XMLSchema}complexType")
     if elementType is None:
         elementType = typeTree.find("{http://www.w3.org/2001/XMLSchema}simpleType")

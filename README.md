@@ -34,4 +34,4 @@ For more convenience, the file mod.demo.diffusion.xsd provide a version of the D
 -	Table
 
 <h4>Data Editing</h4>
-Data Editing and Data Deleting of data already curated are only available for admin users in the current version. All users can upload partial or complete data to edit and curate them.
+Data editing and data deleting of data already curated are only available for the superuser in the current version. All users can upload partial or complete data to edit and curate them.

@@ -47,6 +47,10 @@ from utils.XSDflattenerMDCS.XSDflattenerMDCS import XSDFlattenerMDCS
 from datetime import datetime
 from datetime import timedelta
 from mgi import common
+from mgi.settings import BLOB_HOSTER, BLOB_HOSTER_URI, BLOB_HOSTER_USER, BLOB_HOSTER_PSWD, MDCS_URI
+from utils.BLOBHoster.BLOBHosterFactory import BLOBHosterFactory
+from mimetypes import guess_type
+
 
 ################################################################################
 # 
@@ -284,7 +288,7 @@ def explore_detail(request):
     schema = request.QUERY_PARAMS.get('schema', None)
     title = request.QUERY_PARAMS.get('title', None)
     dataformat = request.QUERY_PARAMS.get('dataformat', None)
-    
+
     try:        
         query = dict()
         if id is not None:            
@@ -307,12 +311,65 @@ def explore_detail(request):
         
             if dataformat== None or dataformat=="xml":
                 for jsonDoc in jsonData:
-                    jsonDoc['content'] = xmltodict.unparse(jsonDoc['content'])  
+                    jsonDoc['content'] = xmltodict.unparse(jsonDoc['content'])
                 serializer = jsonDataSerializer(jsonData)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             elif dataformat == "json":
                 serializer = jsonDataSerializer(jsonData)
                 return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                content = {'message':'The specified format is not accepted.'}
+                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+    except:
+        content = {'message':'No data found with the given parameters.'}
+        return Response(content, status=status.HTTP_404_NOT_FOUND)
+
+
+################################################################################
+#
+# Function Name: explore_detail_data_download(request)
+# Inputs:        request -
+# Outputs:
+# Exceptions:    None
+# Description:   Download document content
+#
+################################################################################
+@api_view(['GET'])
+def explore_detail_data_download(request):
+    """
+    GET http://localhost/rest/explore/data/download
+    id: string (ObjectId)
+    dataformat: [xml,json]
+    """
+    id = request.QUERY_PARAMS.get('id', None)
+    dataformat = request.QUERY_PARAMS.get('dataformat', None)
+
+    try:
+        query = dict()
+        if id is not None:
+            query['_id'] = ObjectId(id)
+        if len(query.keys()) == 0:
+            content = {'message':'No parameters given.'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            jsonData = XMLdata.executeQueryFullResult(query)
+            jsonData = jsonData.pop()
+            #We remove the extension
+            filename = os.path.splitext(jsonData['title'])[0]
+
+            if dataformat== None or dataformat=="xml":
+                jsonData['content'] = xmltodict.unparse(jsonData['content'])
+                contentEncoded = jsonData['content'].encode('utf-8')
+                fileObj = StringIO(contentEncoded)
+                response = HttpResponse(fileObj, content_type='application/xml')
+                response['Content-Disposition'] = 'attachment; filename=' + filename
+                return response
+            elif dataformat == "json":
+                contentEncoded = json.dumps(jsonData['content'])
+                fileObj = StringIO(contentEncoded)
+                response = HttpResponse(fileObj, content_type='application/json')
+                response['Content-Disposition'] = 'attachment; filename=' + filename
+                return response
             else:
                 content = {'message':'The specified format is not accepted.'}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
@@ -715,6 +772,7 @@ def select_schema(request):
     except:
         content = {'message':'No template found with the given parameters.'}
         return Response(content, status=status.HTTP_404_NOT_FOUND)
+
 
 ################################################################################
 # 
@@ -1893,43 +1951,64 @@ def get_dependency(request):
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-from mgi import settings as mgi_settings
-import gridfs
 ################################################################################
 # 
-# Function Name: get_blob(request)
+# Function Name: blob(request)
 # Inputs:        request - 
 # Outputs:        
 # Exceptions:    None
 # Description:   Get a file from its handle
 # 
 ################################################################################   
-@api_view(['GET'])
-def get_blob(request):
+@api_view(['GET', 'POST'])
+def blob(request):
     """
-    GET http://localhost/rest/get-blob?id=id
-    """  
-    # TODO: can change to the hash
-    blob_id = request.QUERY_PARAMS.get('id', None)
+    GET    http://localhost/rest/blob?id=id
     
-    if blob_id is None:
-        content={'message':'No id provided.'}
-        return Response(content, status=status.HTTP_400_BAD_REQUEST)
-    else:
-        try:
-            client = MongoClient(mgi_settings.BLOB_HOSTER_URI)    
-            db = client['mgi']
-            fs = gridfs.GridFS(db)
-            if fs.exists(ObjectId(blob_id)):
-                blob = fs.get(ObjectId(blob_id))
-                response = HttpResponse(blob)
-                response['Content-Disposition'] = 'attachment; filename=' + str(blob.filename)
-                return response
-            else:
+    POST   http://localhost/rest/blob
+    POST data: {'blob': FILE}
+    """  
+    
+    if request.method == 'GET':
+        blob_id = request.QUERY_PARAMS.get('id', None)
+        if blob_id is None:
+            content={'message':'No id provided.'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            try:
+                bh_factory = BLOBHosterFactory(BLOB_HOSTER, BLOB_HOSTER_URI, BLOB_HOSTER_USER, BLOB_HOSTER_PSWD, MDCS_URI)
+                blob_hoster = bh_factory.createBLOBHoster()
+                try:
+                    blob = blob_hoster.get(request.get_full_path())
+                    response = HttpResponse(blob, content_type=guess_type(blob.filename))
+                    response['Content-Disposition'] = 'attachment; filename=' + str(blob.filename)
+                    return response
+                except:
+                    content={'message':'No file could be found with the given id.'}
+                    return Response(content, status=status.HTTP_400_BAD_REQUEST)                            
+            except: 
                 content={'message':'No file could be found with the given id.'}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
-        except: 
-            content={'message':'No file could be found with the given id.'}
+
+    elif request.method == 'POST':
+        try:
+            blob = request.FILES.get('blob')
+            try:        
+                bh_factory = BLOBHosterFactory(BLOB_HOSTER, BLOB_HOSTER_URI, BLOB_HOSTER_USER, BLOB_HOSTER_PSWD, MDCS_URI)
+                blob_hoster = bh_factory.createBLOBHoster()
+                try:
+                    handle = blob_hoster.save(blob=blob, filename=blob.name)
+                    content={'handle': handle}
+                    return Response(content, status=status.HTTP_201_CREATED)
+                except:
+                    content={'message':'Something went wrong with BLOB upload.'}
+                    return Response(content, status=status.HTTP_400_BAD_REQUEST)
+            except:
+                content={'message':'Something went wrong with BLOB Hoster Initialization. Please check the settings.'}
+                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        except:
+            content={'message':'blob parameter not found'}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
+    
+    
         

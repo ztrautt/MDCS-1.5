@@ -29,6 +29,7 @@ from django.template import Context, loader
 import lxml.html as html
 import lxml.etree as etree
 import django.utils.html
+from django.contrib import messages
 
 from modules import get_module_view
 
@@ -421,9 +422,7 @@ def lookup_Occurs(element, xmlTree, namespace, fullPath, edit_data_tree):
 # 
 ################################################################################
 def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, fullPath="", edit_data_tree=None):
-    #(annotation?,(element|group|choice|sequence|any)*)
-    nb_html_tags = int(request.session['nb_html_tags'])
-    
+    #(annotation?,(element|group|choice|sequence|any)*)    
     formString = ""
     
     # remove the annotations
@@ -433,18 +432,43 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
     
     if (minOccurs != 1) or (maxOccurs != 1):       
         text = "Sequence"
-        addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
+        
         # XSD xpath
         xsd_xpath = etree.ElementTree(xmlTree).getpath(element)
 
-        # save xml element to duplicate sequence
-        nbOccurs_to_save = nbOccurrences
-        # Update element information to match the number of elements from the XML document
+        # init variables for buttons management
+        addButton = False
+        deleteButton = False
+        nbOccurrences = 1 #nb of occurrences to render (can't be 0 or the user won't see this element at all)
+        nbOccurrences_data = minOccurs # nb of occurrences in loaded data or in form being rendered (can be 0)
+        xml_element = None      
+        
+        # loading data in the form 
         if request.session['curate_edit']:
-            nbOccurrences = nbOccurs_to_save = lookup_Occurs(element, xmlTree, namespace, fullPath, edit_data_tree)
-
-        # store the XML element
-        xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurs_to_save, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
+            # get the number of occurrences in the data
+            nbOccurrences_data = lookup_Occurs(element, xmlTree, namespace, fullPath, edit_data_tree)
+            
+            # manage buttons
+            if nbOccurrences_data < maxOccurs:
+                addButton = True
+            if nbOccurrences_data > minOccurs:
+                deleteButton = True
+                    
+        else: # starting an empty form
+            # Don't generate the element if not necessary
+            if request.session['curate_min_tree'] and minOccurs == 0:
+                addButton = True
+                deleteButton = False
+            else:
+                if nbOccurrences_data < maxOccurs:
+                    addButton = True
+                if nbOccurrences_data > minOccurs:
+                    deleteButton = True
+            
+        if nbOccurrences_data > nbOccurrences:
+            nbOccurrences = nbOccurrences_data    
+        
+        xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
         
         # keeps track of elements to display depending on the selected choice
         if choiceInfo:
@@ -473,7 +497,8 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
             formString += "<ul>"
         
         # editing data and sequence not found in data
-        if request.session['curate_edit'] and nbOccurrences == 0:
+        if nbOccurrences_data == 0:
+            nb_html_tags = int(request.session['nb_html_tags'])
             tagID = "element" + str(nb_html_tags)
             nb_html_tags += 1
             request.session['nb_html_tags'] = str(nb_html_tags)
@@ -484,6 +509,7 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
             formString += "<span id='remove"+ str(tagID[7:]) +"' class=\"icon remove\" style=\"display:none;\" onclick=\"changeHTMLForm('remove',"+str(tagID[7:])+");\"></span>"
         else:
             for x in range (0,int(nbOccurrences)):
+                nb_html_tags = int(request.session['nb_html_tags'])
                 tagID = "element" + str(nb_html_tags)
                 nb_html_tags += 1
                 request.session['nb_html_tags'] = str(nb_html_tags)
@@ -539,6 +565,39 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
     
     return formString
 
+
+################################################################################
+# 
+# Function Name: generateSequence_absent(request, element, xmlTree, namespace)
+# Inputs:        request - 
+#                element - XML element
+#                xmlTree - XML Tree
+#                namespace - namespace
+# Outputs:       HTML string representing a sequence
+# Exceptions:    None
+# Description:   Generates a section of the form that represents an XML sequence
+# 
+################################################################################
+def generateSequence_absent(request, element, xmlTree, namespace):
+
+    formString = ""
+    # generates the sequence
+    if(len(list(element)) != 0):
+        for child in element:
+            if (child.tag == "{0}element".format(namespace)):            
+                formString += generateElement(request, child, xmlTree, namespace)
+            elif (child.tag == "{0}sequence".format(namespace)):
+                formString += generateSequence(request, child, xmlTree, namespace)
+            elif (child.tag == "{0}choice".format(namespace)):
+                formString += generateChoice(request, child, xmlTree, namespace)
+            elif (child.tag == "{0}any".format(namespace)):
+                pass
+            elif (child.tag == "{0}group".format(namespace)):
+                pass
+    
+    return formString
+
+
 ################################################################################
 # 
 # Function Name: generateChoice(request, element, xmlTree, namespace)
@@ -555,49 +614,73 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
 # 
 ################################################################################
 def generateChoice(request, element, xmlTree, namespace, choiceInfo=None, fullPath="", edit_data_tree=None):
-    #(annotation?,(element|group|choice|sequence|any)*)
-    nbChoicesID = int(request.session['nbChoicesID'])
-    nb_html_tags = int(request.session['nb_html_tags'])
+    #(annotation?,(element|group|choice|sequence|any)*)    
     
     formString = ""
     
     #remove the annotations
     removeAnnotations(element, namespace)
-         
+    
     # init variables for buttons management
     addButton = False
     deleteButton = False
     nbOccurrences = 1 #nb of occurrences to render (can't be 0 or the user won't see this element at all)
-    nbOccurrences_data = 1 # nb of occurrences in loaded data or in form being rendered (can be 0)
+    nbOccurrences_data = 1
     xml_element = None
     
     # not multiple roots
-    if (not isinstance(element,list)):
+    if (not isinstance(element,list)):       
         # XSD xpath: don't need it when multiple root (can't duplicate a root)
         xsd_xpath = etree.ElementTree(xmlTree).getpath(element)        
-        
+ 
         # get element's min/max occurs attributes
         minOccurs, maxOccurs = manageOccurences(element)
-            
+        nbOccurrences_data = minOccurs # nb of occurrences in loaded data or in form being rendered (can be 0)
+        
+        
         # loading data in the form 
         if request.session['curate_edit']:
             # get the number of occurrences in the data
             nbOccurrences_data = lookup_Occurs(element, xmlTree, namespace, fullPath, edit_data_tree)
-            # manage buttons
+            
             if nbOccurrences_data < maxOccurs:
                 addButton = True
             if nbOccurrences_data > minOccurs:
                 deleteButton = True
+                
         else: # starting an empty form
-            if (minOccurs != 1) or (maxOccurs != 1):
-                addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
+            # Don't generate the element if not necessary
+            if request.session['curate_min_tree'] and minOccurs == 0:
+                addButton = True
+                deleteButton = False
+            else:
+                if nbOccurrences_data < maxOccurs:
+                    addButton = True
+                if nbOccurrences_data > minOccurs:
+                    deleteButton = True
             
         if nbOccurrences_data > nbOccurrences:
             nbOccurrences = nbOccurrences_data    
         
-        # if nb of occurrences not set to one, save the element
-#         if (minOccurs != 1) or (maxOccurs != 1):
         xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
+              
+#         # loading data in the form 
+#         if request.session['curate_edit']:
+#             # get the number of occurrences in the data
+#             nbOccurrences_data = lookup_Occurs(element, xmlTree, namespace, fullPath, edit_data_tree)
+#             # manage buttons
+#             if nbOccurrences_data < maxOccurs:
+#                 addButton = True
+#             if nbOccurrences_data > minOccurs:
+#                 deleteButton = True
+#         else: # starting an empty form
+#             if (minOccurs != 1) or (maxOccurs != 1):
+#                 addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
+#             
+#         if nbOccurrences_data > nbOccurrences:
+#             nbOccurrences = nbOccurrences_data    
+#         
+#         xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
 
     # keeps track of elements to display depending on the selected choice
     if choiceInfo:
@@ -626,19 +709,20 @@ def generateChoice(request, element, xmlTree, namespace, choiceInfo=None, fullPa
         formString += "<ul>"
     
     for x in range (0,int(nbOccurrences)):
+        nb_html_tags = int(request.session['nb_html_tags'])
         tagID = "element" + str(nb_html_tags)
         nb_html_tags += 1  
         request.session['nb_html_tags'] = str(nb_html_tags)
 #         if not isinstance(element,list) and ((minOccurs != 1) or (maxOccurs != 1)):
         form_element = FormElement(html_id=tagID, xml_element=xml_element, xml_xpath=fullPath + '[' + str(x+1) +']').save()
         request.session['mapTagID'][tagID] = str(form_element.id)
-        
+        nbChoicesID = int(request.session['nbChoicesID'])
         chooseID = nbChoicesID
         chooseIDStr = 'choice' + str(chooseID)
         nbChoicesID += 1
         request.session['nbChoicesID'] = str(nbChoicesID)
         
-        if request.session['curate_edit'] and nbOccurrences_data == 0:
+        if nbOccurrences_data == 0:
             formString += "<li class='choice removed' id='" + str(tagID) + "'>Choose<select id='"+ chooseIDStr +"' onchange=\"changeChoice(this);\">"
         else:
             formString += "<li class='choice' id='" + str(tagID) + "'>Choose<select id='"+ chooseIDStr +"' onchange=\"changeChoice(this);\">"
@@ -1021,15 +1105,16 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
     
     # check if the element has a module
     has_module = hasModule(request, element)
+    isInAChoice = 'choice' in element.getparent().tag
     
     # check if XML element or attribute
     if element.tag == "{0}element".format(namespace):
         minOccurs, maxOccurs = manageOccurences(element)
-        addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
+#         addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
         element_tag='element'
     elif element.tag == "{0}attribute".format(namespace):
         minOccurs, maxOccurs = manageAttrOccurrences(element)
-        addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
+#         addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
         element_tag='attribute'
         
     # get the name of the element, go find the reference if there's one
@@ -1067,41 +1152,61 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
     
     # XSD xpath: /element/complexType/sequence
     xsd_xpath = etree.ElementTree(xmlTree).getpath(element)
-
+  
+    # init variables for buttons management
+    addButton = False
+    deleteButton = False
+    nbOccurrences = 1 #nb of occurrences to render (can't be 0 or the user won't see this element at all)
+    nbOccurrences_data = minOccurs # nb of occurrences in loaded data or in form being rendered (can be 0)
+    xml_element = None      
     removed = ""
+    
+    # loading data in the form 
     if request.session['curate_edit']:
-        # See if the element is present in the XML document
+        # get the number of occurrences in the data
         edit_elements = edit_data_tree.xpath(fullPath)
-        if len(edit_elements) > 0:
-            nbOccurrences = len(edit_elements)
-        else:
-            # Disable element from the GUI if not present in the XML document
-            if minOccurs == 0:
-                removed = " removed"
-                addButton = True
-                deleteButton = False
-    else:
+        nbOccurrences_data = len(edit_elements)
+        
+        if nbOccurrences_data == 0:
+            removed = " removed"
+
+        # manage buttons
+        if nbOccurrences_data < maxOccurs:
+            addButton = True
+        if nbOccurrences_data > minOccurs:
+            deleteButton = True
+
+    else: # starting an empty form
         # Don't generate the element if not necessary
         if request.session['curate_min_tree'] and minOccurs == 0:
             removed = " removed"
+        
+        if nbOccurrences_data < maxOccurs:
             addButton = True
-            deleteButton = False
-  
+        if nbOccurrences_data > minOccurs:
+            deleteButton = True
+        
+    if nbOccurrences_data > nbOccurrences:
+        nbOccurrences = nbOccurrences_data    
     
-    xml_element = None
-    if not(minOccurs == 1 and maxOccurs == 1) or request.session['curate_min_tree'] == True:
-        nbOccurs_to_save = nbOccurrences 
-        # Update element information to match the number of elements from the XML document
-        if request.session['curate_edit']:
-            # if the element is absent, nbOccurences is 0
-            if len(removed) > 0:
-                nbOccurs_to_save = 0
-        else:
-            if len(removed) > 0:
-                nbOccurs_to_save = 0
-        # store info about element in database
-        xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurs_to_save, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
-  
+    xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
+
+    # this reduce the number of xml_element stored, but may crash for xpath accessor if xpath not found
+    # not a choice: we need to store all options if choice
+#     if not isInAChoice: 
+#         # data being edited
+#         if request.session['curate_edit']:
+#             # cannot remove or add occurrences
+#             if not(minOccurs == maxOccurs == nbOccurrences_data):
+#                 xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
+#         # empty form
+#         else: 
+#             # cannot remove or add occurrences
+#             if not(minOccurs == maxOccurs):
+#                 xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
+#     else:
+#         xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
+    
     
     # management of elements inside a choice (don't display if not part of the currently selected choice)
     if choiceInfo:
@@ -1523,20 +1628,23 @@ def generate_absent(request):
     for prefix, ns in request.session['namespaces'].iteritems():
         xpath_namespaces[prefix] = ns[1:-1]
 
-    sequenceChild = xmlDocTree.xpath(xml_element.xsd_xpath, namespaces=xpath_namespaces)[0]
+    element = xmlDocTree.xpath(xml_element.xsd_xpath, namespaces=xpath_namespaces)[0]
 
     # remove the annotations
-    removeAnnotations(sequenceChild, namespace)
+    removeAnnotations(element, namespace)
 
     # generating a choice, generate the parent element
     if tag == "choice":
         # can use generateElement to generate a choice never generated
-        formString = generateElement(request, sequenceChild, xmlDocTree, namespace, fullPath=form_element.xml_xpath)
+        formString = generateElement(request, element, xmlDocTree, namespace, fullPath=form_element.xml_xpath)
         # remove the opening and closing ul tags
         formString = formString[4:-4]
     else:
-        # can't directly use generateElement because only need the body of the element not its title
-        formString = generateElement_absent(request, sequenceChild, xmlDocTree, form_element)
+        if 'sequence' in element.tag:
+            formString = generateSequence_absent(request, element, xmlDocTree, namespace)
+        else:
+            # can't directly use generateElement because only need the body of the element not its title
+            formString = generateElement_absent(request, element, xmlDocTree, form_element)
 
     
     # build HTML tree for the form
@@ -1562,17 +1670,23 @@ def generate_absent(request):
     if tag == "element":
         # updates buttons
         addButton = False
+        deleteButton = False
         
         if (xml_element.nbOccurs < xml_element.maxOccurs):
             addButton = True
-        
+        if (xml_element.nbOccurs > xml_element.minOccurs):
+            deleteButton = True
+            
         # enable add button if we can add more
         if(addButton == True):
             htmlTree.get_element_by_id("add" + str(id)).attrib['style'] = ''
         else:
             htmlTree.get_element_by_id("add" + str(id)).attrib['style'] = 'display:none'
         # enable delete button to come back to 0 occurs
-        htmlTree.get_element_by_id("remove" + str(id)).attrib['style'] = ''
+        if(deleteButton == True):
+            htmlTree.get_element_by_id("remove" + str(id)).attrib['style'] = ''
+        else:
+            htmlTree.get_element_by_id("remove" + str(id)).attrib['style'] = 'display:none'
 
     response_dict['xsdForm'] = html.tostring(htmlTree)
 
@@ -2201,6 +2315,7 @@ def delete_form(request):
                     # raise an exception when element not found
                     pass
             form_data.delete()
+            messages.add_message(request, messages.INFO, 'Form deleted with success.')
         except Exception, e:
             return HttpResponse({},status=400)
     return HttpResponse({})

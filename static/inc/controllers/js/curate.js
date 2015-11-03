@@ -103,6 +103,7 @@ loadTemplateSelectionControllers = function()
     console.log('BEGIN [loadTemplateSelectionControllers]');
     $('.btn.set-template').on('click', setCurrentTemplate);
     $('.btn.set-curate-user-template').on('click', setCurrentUserTemplate);
+
     init_curate();
     console.log('END [loadTemplateSelectionControllers]');    
 }
@@ -442,30 +443,38 @@ displayTemplateSelectedDialog = function()
            {
                text: "Start",
                click: function() {            	   
-            	   if (validateStartCurate()){
-	            	   var formData = new FormData($( "#form_start" )[0]);
-	            	   $.ajax({
-	            	        url: "/curate/start_curate",
-	            	        type: 'POST',
-	            	        data: formData,
-	            	        cache: false,
-	            	        contentType: false,
-	            	        processData: false,
-	            	        async:false,
-	            	   		success: function(data){
-	            	   			window.location = '/curate/enter-data'
-	            	        },
-	            	        error:function(data){
-	            	        	$("#form_start_errors").html(data.responseText);
-	            	        },
-	            	    })
-	            	    ;
-            	   }
+            	   displayTemplateProcess();
                }
            }
           ]
     });
   });
+}
+
+/**
+* AJAX call, show the template
+*/
+displayTemplateProcess = function ()
+{
+    if (validateStartCurate()){
+       var formData = new FormData($( "#form_start" )[0]);
+       $.ajax({
+            url: "/curate/start_curate",
+            type: 'POST',
+            data: formData,
+            cache: false,
+            contentType: false,
+            processData: false,
+            async:false,
+            success: function(data){
+                window.location = '/curate/enter-data'
+            },
+            error:function(data){
+                $("#form_start_errors").html(data.responseText);
+            },
+        })
+        ;
+   }
 }
 
 /**
@@ -732,6 +741,7 @@ download_current_xml = function(xmlString){
 saveToRepository = function()
 {
     console.log('BEGIN [saveToRepository]');
+    enterKeyPressSaveRepositorySubscription();
 
     $(function() {
         $( "#dialog-save-data-message" ).dialog({
@@ -741,23 +751,7 @@ saveToRepository = function()
                {
                    text: "Save",
                    click: function() {            	   
-	            	   var formData = new FormData($( "#form_save" )[0]);
-	            	   $.ajax({
-	            		   	url : "/curate/save_xml_data_to_db",
-	            	        type: 'POST',
-	            	        data: formData,
-	            	        cache: false,
-	            	        contentType: false,
-	            	        processData: false,
-	            	        async:false,
-	            	        success : function(data) {
-	            	        	$( "#dialog-save-data-message" ).dialog( "close" );
-	            	        	XMLDataSaved();
-	            	        },
-	            	        error:function(data){
-            	                $("#saveErrorMessage").html(data.responseText);             
-	            	        },
-	            	    });
+	            	   saveToRepositoryProcess();
                    }
                }
               ]
@@ -766,6 +760,38 @@ saveToRepository = function()
     
 	
     console.log('END [saveToRepository]');
+}
+
+saveToRepositoryProcess = function()
+{
+   var formData = new FormData($( "#form_save" )[0]);
+   $.ajax({
+        url : "/curate/save_xml_data_to_db",
+        type: 'POST',
+        data: formData,
+        cache: false,
+        contentType: false,
+        processData: false,
+        async:false,
+        success : function(data) {
+            $( "#dialog-save-data-message" ).dialog( "close" );
+            XMLDataSaved();
+        },
+        error:function(data){
+            $("#saveErrorMessage").html(data.responseText);
+        },
+    });
+}
+
+enterKeyPressSaveRepositorySubscription = function ()
+{
+    $('#id_title').keypress(function(event) {
+        if(event.which == $.ui.keyCode.ENTER) {
+            event.preventDefault();
+            event.stopPropagation();
+            saveToRepositoryProcess();
+        }
+    });
 }
 
 /**
@@ -1067,6 +1093,10 @@ set_current_user_template = function(templateID){
     });
 }
 
+
+/**
+ * AJAX call, loads the start curate form
+ */
 load_start_form = function(){
 	$.ajax({
         url : "/curate/start_curate",
@@ -1077,10 +1107,30 @@ load_start_form = function(){
         },
         success: function(data){
             $("#form_start_content").html(data.template);
+            enterKeyPressSubscription();
         }
     });
 }
 
+
+/**
+ * 
+ */
+enterKeyPressSubscription = function ()
+{
+    $('#dialog-message').keypress(function(event) {
+        if(event.which == $.ui.keyCode.ENTER) {
+            event.preventDefault();
+            event.stopPropagation();
+            displayTemplateProcess();
+        }
+    });
+}
+
+
+/**
+ * Validate fields of the start curate form
+ */
 validateStartCurate = function(){
 	errors = ""
 	
@@ -1127,23 +1177,52 @@ setCurrentTemplateCallback = function()
     	loadTemplateSelectionControllers();
     	displayTemplateSelectedDialog();
     });
-    
+
     load_start_form();
-    
+
     console.log('END [setCurrentTemplateCallback]');
 }
 
 
+/**
+ * Delete a form
+ * @param formID
+ */
 deleteForm = function(formID){
+	$(function() {
+        $( "#dialog-delete-form" ).dialog({
+            modal: true,
+            buttons: {
+            	Cancel: function() {
+                    $( this ).dialog( "close" );
+                },
+            	Delete: function() {
+                    delete_form(formID);
+                    $( this ).dialog( "close" );
+                },
+            }
+        });
+    });
+}
+
+
+/**
+ * AJAX call, delete a form
+ * @param formID
+ */
+delete_form = function(formID){
 	$.ajax({
         url : "/curate/delete-form?id=" + formID,
         type : "GET",
         dataType: "json",
-        success: function(data){
-            $('#my-forms').load(document.URL +  ' #my-forms', function() {}); 
+        data : {
+        	formID: formID,
         },
+		success: function(data){
+			window.location = "/my-profile/my-forms"
+	    },
         error:function(data){
-        	$('#my-forms').load(document.URL +  ' #my-forms', function() {}); 
+        	window.location = "/my-profile/my-forms"
         }
     });
 }

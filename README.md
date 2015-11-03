@@ -33,5 +33,11 @@ For more convenience, the file mod.demo.diffusion.xsd provide a version of the D
 -	ChemicalElement
 -	Table
 
+A developer guide for the module system is available on request.
+
 <h4>Data Editing</h4>
 Data editing and data deleting of data already curated are only available for the superuser in the current version. All users can upload partial or complete data to edit and curate them.
+
+<h4>Installers</h4>
+Automatic installers for Windows and Mac OS are available on request. 
+

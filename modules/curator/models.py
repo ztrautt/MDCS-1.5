@@ -29,9 +29,16 @@ class BlobHosterModule(PopupModule):
         return PopupModule.get_module(self, request)
 
     def _get_display(self, request):
+        if 'data' in request.GET:
+            if len(request.GET['data']) > 0:
+                return '<b>Handle: </b> <a href="' + request.GET['data'] + '">' + request.GET['data'] + '</a>' 
         return 'No files selected'
 
+    
     def _get_result(self, request):
+        if 'data' in request.GET:
+            if len(request.GET['data']) > 0:
+                return request.GET['data']
         return ''
 
     def _post_display(self, request):

@@ -1,6 +1,6 @@
-{% extends "base_featured.html" %}
+{% extends "mdcs/extra/one_column.html" %}
 {% load staticfiles %}
-
+{% load auth_extras %}
 {% comment %}
 <!--
 ################################################################################
@@ -21,18 +21,16 @@
 -->
 {% endcomment %}
 
-{% block menu %}{% include 'menu.html' with active_tab='tab1' %}{% endblock %}
+{% block menu %}{% include 'mdcs/menus/main.html' with active_tab='tab1' %}{% endblock %}
 
 {% block title %}	
 <div class="left" style="width: 400px">		
-    <h1><span>Materials Data Curator</span></h1>
+    <h1><span>{{CUSTOM_TITLE}} Curator</span></h1>
     <br/>
     <p class="large">
-        This system allows for the curation of Material Data in a repository using predefined templates.
-    </p>
-    <p class="large">
-        This is being developed at the National Institute of Standards and Technology and is made available to solicit
-        comments from the Material Science community. Please do not enter any proprietary data into this system.
+	This system allows for the curation of Material Data in a repository using predefined templates. <br/><br/>
+    This is being developed at the National Institute of Standards and Technology and is made available to solicit comments from the Material Science community. 
+    Please do not enter any proprietary data into this system.    
     </p>
 </div>
 <div class="right">
@@ -52,26 +50,31 @@
 		<div class="clearer">&nbsp;</div>
 	
 		<div class="content-separator"></div>
-	
+
+		{% if user|has_perm:'curate.curate_access' %}
 		<img src="{% static 'resources/img/edit-big.png' %}" width="64" height="64" alt="" class="left bordered" />
 	
-		<h3><a href="curate">Curate your Materials Data</a></h3>
+		<h3><a href="curate">Curate your {{CUSTOM_DATA}}</a></h3>
 		
 		<p>Click here to select a form template and then fill out the corresponding form.</p>
 	
 		<div class="clearer">&nbsp;</div>
 	
 		<div class="content-separator"></div>
-		
+		{% endif %}
+
+		{% if user|has_perm:'explore.explore_access' %}
 		<img src="{% static 'resources/img/search-big.png' %}" width="64" height="64" alt="" class="left bordered" />
 	
 		<h3><a href="explore">Explore the repository</a></h3>
 		
-		<p>Click here to search for Material Data in the repository using flexible queries.</p>
+		<p>Click here to search for {{CUSTOM_DATA}} in the repository using flexible queries.</p>
 	
 		<div class="clearer">&nbsp;</div>
 		<div class="content-separator"></div>
-		
+		{% endif %}
+
+		{% if user|has_perm:'compose.compose_access' %}
 		<img src="{% static 'resources/img/edit-big.png' %}" width="64" height="64" alt="" class="left bordered" />
 	
 		<h3><a href="compose">Compose a template</a></h3>
@@ -79,6 +82,7 @@
 		<p>Click here to compose your own template.</p>
 	
 		<div class="clearer">&nbsp;</div>
+		{% endif %}
 	
 	</div>
 	

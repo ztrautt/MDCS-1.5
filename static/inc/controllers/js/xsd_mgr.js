@@ -20,13 +20,43 @@ loadUploadManagerHandler = function()
     $('.retrieve').on('click',restoreObject);
     $('.edit').on('click',editInformation);
     $('.version').on('click', manageVersions);
-    $('.modules').on('click', manageModules); 
+    $('.modules').on('click', manageModules);
+    $('.exporters').on('click', manageExporters);
+    $('.resultXslt').on('click', manageResultXslt);
     $('.delete').on('click', deleteObject);
     $('.upload').on('click', uploadObject);
     $('.buckets').on('click', manageBuckets);
     console.log('END [loadUploadManagerHandler]');
 }
 
+/**
+ * Redirects to result XSLT management page
+ */
+manageResultXslt = function()
+{
+    var modelName = $(this).parent().siblings(':first').text();
+    var modelFilename = $(this).parent().siblings(':nth-child(2)').text();
+    var tdElement = $(this).parent();
+    var objectID = $(this).attr("objectid");
+    var objectType = $(this).attr("objectType");
+
+    window.location = "/admin/resultXslt?id=" + objectID
+}
+
+
+/**
+ * Redirects to exporter management page
+ */
+manageExporters = function()
+{
+    var modelName = $(this).parent().siblings(':first').text();
+    var modelFilename = $(this).parent().siblings(':nth-child(2)').text();
+    var tdElement = $(this).parent();
+    var objectID = $(this).attr("objectid");
+    var objectType = $(this).attr("objectType");
+
+    window.location = "/admin/exporters?id=" + objectID
+}
 
 /**
  * Redirects to module management page
@@ -348,9 +378,7 @@ restore_object = function(objectID, objectType){
         	objectType : objectType,
         },
         success: function(data){
-            $('#model_selection').load(document.URL +  ' #model_selection', function() {
-                loadUploadManagerHandler();
-          });
+            location.reload();
         }
     });
 }
@@ -466,9 +494,7 @@ edit_information = function(objectID, objectType, newName, newFilename, newBucke
             	showErrorEditType();
             }else{
                 $("#dialog-edit-info").dialog( "close" );
-                $('#model_selection').load(document.URL +  ' #model_selection', function() {
-                      loadUploadManagerHandler();
-                });
+                location.reload();
             }
         }
     });
@@ -523,9 +549,7 @@ delete_object = function(objectID, objectType){
         	objectType : objectType,
         },
         success: function(data){
-            $('#model_selection').load(document.URL +  ' #model_selection', function() {
-            	loadUploadManagerHandler();
-            });
+            location.reload();
         }
     });
 }
@@ -596,7 +620,6 @@ saveObject = function()
 	console.log('END [saveObject]');
 }
 
-
 /**
  * AJAX call, save an object
  * @param buckets
@@ -611,12 +634,10 @@ save_object = function(buckets){
         },
         success: function(data){
         	if('errors' in data){
-        		$("#objectUploadErrorMessage").html("<font color='red'>Please upload a valid XML schema first.</font>");
-        	}else{
+        		$("#objectUploadErrorMessage").html("<font color='red'>Please upload a valid XML schema.</font>");
+        	} else {
                 $( "#dialog-upload-message" ).dialog("close");
-                $('#model_selection').load(document.URL +  ' #model_selection', function() {
-                loadUploadManagerHandler();
-                });
+                location.reload();
         	}
         }
     });
@@ -767,7 +788,9 @@ add_bucket = function(label){
         success: function(data){
             if ("errors" in data){
             	$("#errorAddBucket").html("<font color='red'>A bucket with the same label already exists.</font><br/>");
-            }else{
+            } else if("errors" in data) {
+                $("#errorsTemplateName").html("<font color='red'>The template's name is already used. Please give another name to the template.</font><br/>");
+            } else {
                 $('#dialog-add-bucket').dialog('close');
                 $('#model_buckets').load(document.URL +  ' #model_buckets', function() {});
                 $('#model_select_buckets').load(document.URL +  ' #model_select_buckets', function() {});
@@ -777,6 +800,31 @@ add_bucket = function(label){
     });
 }
 
+/**
+ * AJAX call, check the name of the template
+ * @param name name of the object
+ */
+check_name = function(name){
+    success = false;
+    $.ajax({
+        url : "/admin/check_name",
+        type : "POST",
+        dataType: "json",
+        async: false,
+        data : {
+        	name : name,
+        },
+        success: function(data){
+            if ("errors" in data){
+                success = false;
+            } else {
+                success = true;
+            }
+        }
+    });
+
+    return success;
+}
 
 /**
  * Display window to delete a bucket

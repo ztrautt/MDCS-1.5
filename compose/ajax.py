@@ -19,7 +19,7 @@ from django.http import HttpResponse
 import json
 from django.conf import settings
 from mongoengine import *
-from mgi.models import Template, Type, XML2Download, MetaSchema
+from mgi.models import Template, Type, XML2Download, MetaSchema, Exporter
 import lxml.etree as etree
 from io import BytesIO
 from utils.XSDhash import XSDhash
@@ -60,7 +60,7 @@ def set_current_template(request):
         request.session['xmlTemplateCompose'] = xmlDocData
         request.session['newXmlTemplateCompose'] = xmlDocData
     else:
-        base_template_path = os.path.join(settings.SITE_ROOT, 'static/resources/xsd/new_base_template.xsd')
+        base_template_path = os.path.join(settings.SITE_ROOT, 'static', 'resources', 'xsd', 'new_base_template.xsd')
         base_template_file = open(base_template_path, 'r')
         base_template_content = base_template_file.read()
         request.session['xmlTemplateCompose'] = base_template_content
@@ -179,7 +179,7 @@ def load_xml(request):
     
     request.session['includedTypesCompose'] = []
     
-    xsltPath = os.path.join(settings.SITE_ROOT, 'static/resources/xsl/xsd2html.xsl')
+    xsltPath = os.path.join(settings.SITE_ROOT, 'static', 'resources', 'xsl', 'xsd2html.xsl')
     xslt = etree.parse(xsltPath)
     transform = etree.XSLT(xslt)
     xmlTree = ""
@@ -319,6 +319,13 @@ def save_template(request):
         id = url.query.split("=")[1]
         dependencies.append(id)
     template = Template(title=template_name, filename=template_name, content=content, hash=hash, user=str(request.user.id), dependencies=dependencies)
+    #We add default exporters
+    try:
+        exporters = Exporter.objects.filter(available_for_all=True)
+        template.exporters = exporters
+    except:
+        pass
+
     template.save()
     
     MetaSchema(schemaId=str(template.id), flat_content=flatStr, api_content=content).save()

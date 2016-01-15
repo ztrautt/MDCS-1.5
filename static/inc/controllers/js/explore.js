@@ -11,6 +11,7 @@
  * 
  */
 
+var timeout;
 
 /**
  * AJAX call, checks that a template is selected
@@ -68,30 +69,8 @@ loadTemplateSelectionControllers = function()
     console.log('BEGIN [loadTemplateSelectionControllers]');
     $('.btn.set-explore-template').on('click', setExploreCurrentTemplate);
     $('.btn.set-explore-user-template').on('click', setExploreCurrentUserTemplate);
-    redirect_explore_tabs();
     console.log('END [loadTemplateSelectionControllers]');
 }
-
-
-
-/**
- * AJAX call, sets tabs when redirect
- */
-redirect_explore_tabs = function(){
-	$.ajax({
-        url : "/explore/redirect_explore_tabs",
-        type : "GET",
-        dataType: "json",
-        success: function(data){
-        	if (data.tab == "tab-2"){
-        		redirectTab2();
-        	}else{
-        		switchTabRefresh();
-        	}
-        }
-    });
-}
-
 
 
 /**
@@ -146,10 +125,7 @@ get_custom_form = function(){
         		$('#queryForm').html(data.queryForm);
         	}  
         	$("#customForm").html(data.customForm);
-        	
-        	if ('sparqlQuery' in data){
-        		$('#SPARQLqueryBuilder .SPARQLTextArea').html(data.sparqlQuery);
-        	}        	
+
         }
     });
 }
@@ -330,7 +306,6 @@ getAsyncResults = function(numInstance)
 	get_results_by_instance(numInstance);
 }
 
-
 /**
  * AJAX call, gets query results
  * @param numInstance
@@ -349,7 +324,6 @@ get_results_by_instance = function(numInstance){
     });
 }
 
-
 /**
  * AJAX call, gets the results
  */
@@ -360,53 +334,6 @@ get_results = function(){
         dataType: "json",
         success: function(data){
         	getAsyncResults(data.numInstance);
-        }
-    });	
-}
-
-
-/**
- * Get SPARQL results asynchronously (disabled)
- * @param numInstance
- */
-getAsyncSparqlResults = function(numInstance)
-{
-	/*for (i=0; i < Number(nbInstances); ++i){
-		Dajaxice.explore.getSparqlResultsByInstance(Dajax.process,{"numInstance": i});
-	}*/
-	get_sparql_results_by_instance(numInstance);
-}
-
-
-/**
- * AJAX call, get SPARQL query results
- * @param numInstance
- */
-get_sparql_results_by_instance = function(numInstance){
-    $.ajax({
-        url : "/explore/get_sparql_results_by_instance",
-        type : "GET",
-        dataType: "json",
-        data : {
-        	numInstance: numInstance,
-        },
-        success: function(data){
-            $("#results").html(data.results);
-        }
-    });
-}
-
-
-/**
- * AJAX call, gets the sparql results
- */
-get_sparql_results = function(){
-    $.ajax({
-        url : "/explore/get_sparql_results",
-        type : "GET",
-        dataType: "json",
-        success: function(data){
-        	getAsyncSparqlResults(data.numInstance);
         }
     });	
 }
@@ -693,7 +620,7 @@ exploreData = function()
 
 
 /**
- * AJAX call, saev the custom form and redirects to perform search
+ * AJAX call, save the custom form and redirects to perform search
  * @param formContent
  */
 save_custom_data = function(formContent){
@@ -848,37 +775,6 @@ clearFields = function()
     console.log('END [clearFields]');
 }
 
-
-/**
- * Download all results
- */
-downloadResults = function()
-{
-	console.log('BEGIN [downloadResults]');
-		
-	download_results();
-	
-	console.log('END [downloadResults]');
-}
-
-
-/**
- * AJAX call, redirects to download view
- */
-download_results = function(){
-    $.ajax({
-        url : "/explore/download_results",
-        type : "GET",
-        dataType: "json",
-        success: function(data){
-        	if ('savedResultsID' in data){
-        		window.location = "/explore/results/download-results?id=" + data.savedResultsID;
-        	}
-        }
-    });
-}
-
-
 /**
  * Display errors
  */
@@ -923,115 +819,6 @@ back_to_query = function(){
         }
     });
 }
-
-
-/**
- * Manage the display of the tabs
- */
-switchTabRefresh = function()
-{
-	console.log('BEGIN [switchTabRefresh]');
-	
-	var tab = $("#explore-tabs").find("input:radio:checked").attr("id");	
-	
-	if (tab == null){
-		$("#tab-1").prop("checked",true);
-		tab = "tab-1"
-	}
-	switchTab(tab);
-	
-	console.log('END [switchTabRefresh]');
-}
-
-/**
- * Manage the display of the tabs
- */
-switchTab = function(tab)
-{
-	console.log('BEGIN [switchTab]');
-	
-	//var tab = $("#explore-tabs").find("input:radio:checked").attr("id")
-	
-	$("#subnav-wrapper .tabbed").attr("style","display:none;");
-	$("#subnav-"+tab).removeAttr("style");
-	
-	if (tab == "tab-1"){
-		$("#queryBuilder").removeAttr("style");
-		$("#customForm").removeAttr("style");
-		$("#tab1Desc").removeAttr("style");
-		$("#SPARQLqueryBuilder").attr("style","display:none;");		
-		$("#tab2Desc").attr("style","display:none;");	
-	}else{
-		$("#queryBuilder").attr("style","display:none;");
-		$("#customForm").attr("style","display:none;");
-		$("#tab1Desc").attr("style","display:none;");
-		$("#SPARQLqueryBuilder").removeAttr("style");
-		$("#tab2Desc").removeAttr("style");	
-	}
-	switch_explore_tab(tab);
-	
-	console.log('END [switchTab]');
-}
-
-
-switch_explore_tab = function(tab){
-    $.ajax({
-        url : "/explore/switch_explore_tab",
-        type : "POST",
-        dataType: "json",
-        data : {
-        	tab : tab,
-        },
-        success: function(data){
-            $('#customForm').html(data.customForm);
-            $('#sparqlCustomForm').html(data.sparqlCustomForm);
-        }
-    });
-}
-
-
-/**
- * Manage the display of the tabs
- */
-redirectExplore = function(tab)
-{
-	console.log('BEGIN [redirectExplore]');
-	
-	redirect_explore();
-	
-	console.log('END [redirectExplore]');
-}
-
-
-/**
- * AJAX call, manage the tabs
- */
-redirect_explore = function(){
-    $.ajax({
-        url : "/explore/redirect_explore",
-        type : "GET",
-        dataType: "json",
-        success: function(data){
-        	window.location = "/explore"
-        }
-    });
-}
-
-
-/**
- * Manage the display of the tabs
- */
-redirectTab2 = function()
-{
-	console.log('BEGIN [redirectTab2]');
-	
-	$("#explore-tabs").find("input:radio").removeAttr('checked');
-	$("#tab-2").prop("checked",true);
-	switchTabRefresh();
-	
-	console.log('END [redirectTab2]');
-}
-
 
 /**
  * Show the custom tree to choose a field for the query builder
@@ -1106,117 +893,12 @@ select_element = function(elementID, elementName){
         	elementName: elementName
         },
 		success: function(data){
-	        if(data.tab == "tab-1"){
-                $($("#" + data.criteriaTagID).children()[1]).val(elementName);
-                $($("#" + data.criteriaTagID).children()[1]).attr("class","elementInput");
-                updateUserInputs(elementID, data.criteriaID); 
-                $("#dialog-customTree").dialog("close");    
-	        }else{
-	        	$("#sparqlElementPath").val(data.elementPath);
-                $("#sparqlExample").html(data.queryExample);
-	        }
+            $($("#" + data.criteriaTagID).children()[1]).val(elementName);
+            $($("#" + data.criteriaTagID).children()[1]).attr("class","elementInput");
+            updateUserInputs(elementID, data.criteriaID); 
+            $("#dialog-customTree").dialog("close");    
 	    }
     });
-}
-
-
-/**
- * Submit a SPARQL query
- */
-function sparqlquery(){
-	var queryStr = $("#SPARQLqueryBuilder .SPARQLTextArea").val();	
-	var sparqlFormatIndex = $("#SPARQLFormat").prop("selectedIndex");
-	var elems = $("#fed_of_queries_instances")[0].getElementsByTagName("input");
-    for(var i = 0; i < elems.length; i++) {
-    	if(elems[i].checked == true)
-    	{
-    		elems[i].setAttribute("checked","checked");
-    	}else
-    	{
-    		elems[i].removeAttribute('checked');
-    	}
-    }
-	var fedOfQueries = $("#fed_of_queries_instances").html()
-	execute_sparql_query(queryStr, sparqlFormatIndex, fedOfQueries);
-}
-
-
-/**
- * AJAX call, submit a SPARQL query
- * @param queryStr
- * @param sparqlFormatIndex
- * @param fedOfQueries
- */
-execute_sparql_query = function(queryStr, sparqlFormatIndex, fedOfQueries){
-	$.ajax({
-        url : "/explore/execute_sparql_query",
-        type : "POST",
-        dataType: "json",
-        data : {
-        	queryStr: queryStr,
-        	sparqlFormatIndex: sparqlFormatIndex,
-        	fedOfQueries: fedOfQueries,
-        },
-		success: function(data){
-			if('errors' in data){
-				showErrorInstancesDialog();
-			}else{
-				window.location = "/explore/sparqlresults";
-			}
-	    }
-    });
-}
-
-
-/**
- * Download SPARQL results
- */
-downloadSparqlResults = function()
-{
-	console.log('BEGIN [downloadSparqlResults]');
-	
-	download_sparql_results();
-	
-	console.log('END [downloadSparqlResults]');
-}
-
-
-/**
- * AJAX call, redirects to download view
- */
-download_sparql_results = function(){
-	$.ajax({
-        url : "/explore/download_sparql_results",
-        type : "GET",
-        dataType: "json",
-		success: function(data){
-			window.location = "/explore/results/download-sparqlresults?id=" + data.savedResultsID;
-	    }
-    });
-}
-
-
-/**
- * Get the path to an element to use in a SPARQL query
- */
-getElementPath = function()
-{
-	console.log('BEGIN [getElementPath]');
-	
-	$(function() {
-        $( "#dialog-sparqlcustomTree" ).dialog({
-            modal: true,
-            width: 510,
-            height: 660,
-            buttons: {
-		Close: function() {
-                    $( this ).dialog( "close" );
-                }
-            }
-        });
-    });
-	
-	console.log('END [getElementPath]');
 }
 
 /**
@@ -1402,4 +1084,329 @@ delete_result = function(result_id){
 			   $("#" + result_id).remove();
 	    }
     });
+}
+
+/**
+ * AJAX call, update the publish state and date of a XMLdata
+ * @param result_id
+ */
+updatePublish = function(result_id){
+	$.ajax({
+        url : "/explore/update_publish",
+        type : "GET",
+        dataType: "json",
+        data : {
+        	result_id: result_id,
+        },
+		success: function(data){
+		    $("#" + result_id).load(document.URL +  " #" + result_id);
+	    }
+    });
+}
+
+/**
+ * AJAX call, update the publish state of a XMLdata
+ * @param result_id
+ */
+updateUnpublish = function(result_id){
+	$.ajax({
+        url : "/explore/update_unpublish",
+        type : "GET",
+        dataType: "json",
+        data : {
+        	result_id: result_id,
+        },
+		success: function(data){
+            $("#" + result_id).load(document.URL +  " #" + result_id);
+	    }
+    });
+}
+
+/**
+ * AJAX call, update the publish state of a XMLdata and redirect to edit page
+ * @param result_id
+ */
+editResource = function(result_id){
+	$.ajax({
+        url : "/explore/update_unpublish",
+        type : "GET",
+        dataType: "json",
+        data : {
+        	result_id: result_id,
+        },
+		success: function(data){
+		    $("#" + result_id).load(document.URL +  " #" + result_id);
+            location.href = "/curate/enter-data?id="+result_id
+	    }
+    });
+}
+
+/**
+ * Show/hide
+ * @param event
+ */
+showhide = function(event){
+	console.log('BEGIN [showhide]');
+	button = event.target
+	parent = $(event.target).parent()
+	$(parent.children()[2]).toggle("blind",500);
+	if ($(button).attr("class") == "expand"){
+		$(button).attr("class","collapse");
+	}else{
+		$(button).attr("class","expand");
+	}
+
+	console.log('END [showhide]');
+}
+
+/**
+ * Comes back to the query, keeping the current criterias
+ */
+backToResults = function()
+{
+	console.log('BEGIN [backToResults]');
+
+	window.history.back()
+
+	console.log('END [backToResults]');
+}
+
+
+clearExport = function() {
+    $("#btn_errors").html("")
+    $("#banner_errors").hide(200)
+    $("#form_start_errors").html("");
+    $("#form_start_current").html("");
+    $("#results_errors").html("")
+    $("#banner_results_errors").hide(200);
+}
+
+
+/**
+* Export files
+*/
+exportRes = function() {
+
+	console.log('BEGIN [downloadSelectedResults]');
+    clearExport();
+    var existOne = false;
+    // Need to Set input values explicitiy before sending innerHTML for save
+    var elems = document.getElementById("results").getElementsByTagName("input")
+    var listId = [];
+    for(var i = 0; i < elems.length; i++) {
+    	if(elems[i].checked == true)
+    	{
+    	    existOne = true;
+    	    listId.push(elems[i].getAttribute("result_id"));
+    	}
+    }
+
+    if(existOne > 0){
+        displayExportSelectedDialog(listId);
+    }
+    else
+    {
+        $("#btn_errors").html("Please select results to export");
+        $("#banner_errors").show(500)
+    }
+
+	console.log('END [downloadSelectedResults]');
+}
+
+
+/**
+ * Show a dialog when a result is selected
+ */
+displayExportSelectedDialog = function(listId)
+{
+    exist = load_start_form(listId);
+    $(function() {
+        $( "#dialog-message" ).dialog({
+          modal: true,
+          buttons:
+              [
+               {
+                   text: "Export",
+                   click: function() {
+
+                            if(validateExport())
+                            {
+                               $(form_start).submit();
+                               $( this ).dialog( "close" );
+                            }
+                   }
+               }
+              ]
+        });
+    });
+}
+
+
+load_start_form = function(listId){
+	$.ajax({
+        url : "/explore/start_export",
+        type : "GET",
+        dataType: "json",
+        data : {
+            listId : listId,
+        },
+        success: function(data){
+            $("#form_start_errors").html("");
+            $("#form_start_current").html(data.template);
+        }
+    });
+}
+
+validateExport = function(){
+	errors = ""
+	// check if an option has been selected
+	selected_option = $( "#form_start" ).find("input:checkbox[name='my_exporters']:checked").val()
+	selected_option_XSLT = $( "#form_start" ).find("input:checkbox[name='my_xslts']:checked").val()
+	if (selected_option == undefined && selected_option_XSLT == undefined){
+		errors = "No option selected. Please check export format."
+	}
+
+	if (errors != ""){
+		$("#form_start_errors").html(errors);
+		return (false);
+	}else{
+		return (true)
+	}
+}
+
+
+clearSearch = function() {
+    $("#btn_errors").html('');
+    $("#banner_errors").hide(200);
+    $("#results").html('');
+    $("#results_errors").html('');
+    $("#banner_results_errors").hide(200);
+    $("#results_infos").html('');
+}
+
+/**
+ * AJAX call, gets query results
+ * @param numInstance
+ */
+get_results_keyword = function(numInstance){
+    $("#id_search_entry").tagit("createTagIfNeeded");
+    // clear the timeout
+	clearTimeout(timeout);
+	// send request if no parameter changed during the timeout
+    timeout = setTimeout(function(){
+        clearSearch();
+        $("#results").html('Please wait...');
+        var keyword = $("#id_search_entry").val();
+        $.ajax({
+            url : "/explore/get_results_by_instance_keyword",
+            type : "GET",
+            dataType: "json",
+            data : {
+                keyword: keyword,
+                schemas: getSchemas(),
+                userSchemas: getUserSchemas(),
+                onlySuggestions: false,
+            },
+            beforeSend: function( xhr ) {
+                $("#loading").addClass("isloading");
+            },
+            success: function(data){
+                if (data.resultString.length == 0){
+                    clearSearch();
+                    $("#results_errors").html("<i class='fa fa-info fa-2x'></i>  No results found");
+                    $("#banner_results_errors").show(200)
+                }
+                else{
+                    if(data.count > 1)
+                        $("#results_infos").html(data.count + " results");
+                    else
+                        $("#results_infos").html(data.count + " result");
+
+                    $("#results").html(data.resultString);
+                }
+            },
+            complete: function(){
+                $("#loading").removeClass("isloading");
+            }
+        });
+    }, 1000);
+}
+
+initAutocomplete = function() {
+         $("#id_search_entry").tagit({
+            allowSpaces: false,
+            placeholderText : 'Enter keywords, or leave blank to retrieve all records',
+            afterTagRemoved: function(event, ui) {
+                clearSearch();
+                $("#id_search_entry").tagit("addPlaceHolder", this.value);
+            },
+            onTagAdded: function(event, ui) {
+                $("#id_search_entry").tagit("removePlaceHolder", this.value);
+            },
+            afterTagAdded: function(event, ui) {
+                get_results_keyword();
+            },
+            autocomplete: ({
+                search: function(event, ui) {
+                    $("#loading").addClass("isloading");
+                },
+                response: function(event, ui) {
+                    $("#loading").removeClass("isloading");
+                },
+                focus: function (event, ui) {
+                   this.value = ui.item.label;
+                   event.preventDefault(); // Prevent the default focus behavior.
+                },
+                source: function(request, response) {
+                $.getJSON("/explore/get_results_by_instance_keyword", { keyword: request.term, schemas: getSchemas(), userSchemas: getUserSchemas(), onlySuggestions: true, },
+                function (data) {
+                    response($.map(data.resultsByKeyword, function (item) {
+                        if(item.label != '')
+                        {
+                            return {
+                            label: item.label,
+                            value: item.label
+                            }
+                        }
+                 }));}
+                )},
+                minLength: 2,
+                select: function( event, ui ) {
+                  this.value = ui.item.label;
+                  $("#id_search_entry").tagit("createTag", this.value);
+                return false;
+                }
+            })
+        })
+}
+
+
+getSchemas = function(numInstance){
+    var values = [];
+    $('#id_my_schemas input:checked').each(function() {
+        values.push(this.value);
+    });
+
+    return values;
+}
+
+getUserSchemas = function(numInstance){
+    var values = [];
+    $('#id_my_user_schemas input:checked').each(function() {
+        values.push(this.value);
+    });
+
+    return values;
+}
+
+initResources = function(){
+	$("#refine_resource").find("input[type=checkbox]").change(function(){
+	    get_results_keyword();
+	});
+}
+
+showHide = function(button, id){
+    $("#"+id).toggle("slow");
+    var color = $(button).css("background-color");
+    $("#"+id).css("color", color);
 }

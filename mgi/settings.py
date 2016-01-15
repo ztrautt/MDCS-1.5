@@ -22,7 +22,7 @@
 
 import os
 
-VERSION = "1.2"
+VERSION = "1.3"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -84,6 +84,24 @@ BLOB_HOSTER_USER = MONGO_MGI_USER
 BLOB_HOSTER_PSWD = MONGO_MGI_PASSWORD
 MDCS_URI = 'http://127.0.0.1:8000'
 
+# Handle system module parameters
+HANDLE_SERVER_URL = ''
+HANDLE_SERVER_SCHEMA = ''
+HANDLE_SERVER_USER = ''
+HANDLE_SERVER_PSWD = ''
+
+# Customization: MGI
+CUSTOM_TITLE = 'Materials Data'
+CUSTOM_SUBTITLE = 'Part of the Materials Genome Initiative'
+CUSTOM_DATA = 'Materials Data'
+CUSTOM_CURATE = 'Data Curation'
+CUSTOM_EXPLORE = 'Data Exploration'
+CUSTOM_COMPOSE = 'Composer'
+
+#CURATE
+CURATE_MIN_TREE = True
+CURATE_COLLAPSE = True
+
 TEMPLATE_DIRS = [os.path.join(BASE_DIR, 'templates')]
 
 TEMPLATE_LOADERS = (
@@ -99,7 +117,8 @@ TEMPLATE_CONTEXT_PROCESSORS = ("django.contrib.auth.context_processors.auth",
 "django.core.context_processors.media",
 "django.core.context_processors.static",
 "django.core.context_processors.tz",
-"django.contrib.messages.context_processors.messages")
+"django.contrib.messages.context_processors.messages",
+"utils.custom_context_processors.domain_context_processor")
 
 # Application definition
 
@@ -117,9 +136,10 @@ INSTALLED_APPS = (
     'admin_mdcs',
     'api',
     'curate',
+    'exporter',
     'explore',
     'compose',
-    'modules',    
+    'modules',
 )
 
 OAUTH2_PROVIDER = {
@@ -133,10 +153,11 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.BasicAuthentication',
         'oauth2_provider.ext.rest_framework.OAuth2Authentication',
         'rest_framework.authentication.SessionAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
     )
+    # ,
+    # 'DEFAULT_PERMISSION_CLASSES': (
+    #     'rest_framework.permissions.IsAuthenticated',
+    # )
 }
 
 SWAGGER_SETTINGS = {

@@ -18,7 +18,7 @@ from django.http import HttpResponse
 import lxml.etree as etree
 import json
 from io import BytesIO
-from mgi.models import Template, TemplateVersion, Instance, Request, Module, Type, TypeVersion, Message, Bucket, MetaSchema
+from mgi.models import Template, TemplateVersion, Instance, Request, Module, Type, TypeVersion, Message, Bucket, MetaSchema, Exporter, ExporterXslt, ResultXslt
 from django.contrib.auth.models import User
 from utils.XSDflattenerMDCS.XSDflattenerMDCS import XSDFlattenerMDCS
 from utils.XSDhash import XSDhash
@@ -140,8 +140,14 @@ def save_object(request):
         hash = XSDhash.get_hash(objectContent)
         # save the object
         if objectType == "Template":            
-            objectVersions = TemplateVersion(nbVersions=1, isDeleted=False).save()            
+            objectVersions = TemplateVersion(nbVersions=1, isDeleted=False).save()
             object = Template(title=objectName, filename=objectFilename, content=objectContent, version=1, templateVersion=str(objectVersions.id), hash=hash).save()
+            #We add default exporters
+            try:
+                exporters = Exporter.objects.filter(available_for_all=True)
+                object.exporters = exporters
+            except:
+                pass
         elif objectType == "Type":                                                                                    
             objectVersions = TypeVersion(nbVersions=1, isDeleted=False).save()
             object = Type(title=objectName, filename=objectFilename, content=objectContent, version=1, typeVersion=str(objectVersions.id), hash=hash).save()
@@ -895,10 +901,9 @@ def add_bucket(request):
     
     # check that the label is unique
     labels = Bucket.objects.all().values_list('label') 
-    if label in labels:        
+    if label in labels:
         response_dict = {"errors": "True"}
         return HttpResponse(json.dumps(response_dict), content_type='application/javascript')
-    
     # get an unique color
     colors = Bucket.objects.all().values_list('color') 
     color = rdm_hex_color()
@@ -1020,10 +1025,10 @@ def remove_module(request):
     
 
 ################################################################################
-# 
+#
 # Function Name: save_modules(request)
 # Inputs:        request -
-# Outputs:       
+# Outputs:
 # Exceptions:    None
 # Description:   Save the template with its modules.
 #
@@ -1031,9 +1036,93 @@ def remove_module(request):
 def save_modules(request):
     template_content = request.session['moduleTemplateContent']
     template_id = request.session['moduleTemplateID']
-        
+
     template = Template.objects.get(pk=template_id)
     template.content = template_content
-    template.save()    
-    
+    template.save()
+
+    return HttpResponse(json.dumps({}), content_type='application/javascript')
+
+
+################################################################################
+#
+# Function Name: save_exporters(request)
+# Inputs:        request -
+# Outputs:
+# Exceptions:    None
+# Description:   Save exporters and XSLT for a template.
+#
+################################################################################
+def save_exporters(request):
+    template_id = request.session['moduleTemplateID']
+    listIdOn = request.POST.getlist('listIdOn[]')
+    listIdOnXslt = request.POST.getlist('listIdOnXslt[]')
+    #We retrieve the exporter
+    template = Template.objects.get(pk=template_id)
+    #We reinitialise exporters and XSLT
+    template.exporters = None
+    template.XSLTFiles = None
+    template.save()
+    #We add exporters
+    for exp in listIdOn:
+        exp = Exporter.objects.get(pk=exp)
+        Template.objects(id=template_id).update_one(push__exporters=exp)
+    #We add XSLT files
+    for xslt in listIdOnXslt:
+        xslt = ExporterXslt.objects.get(pk=xslt)
+        Template.objects(id=template_id).update_one(push__XSLTFiles=xslt)
+    template.save()
+
+    return HttpResponse(json.dumps({}), content_type='application/javascript')
+
+################################################################################
+#
+# Function Name: save_result_xslt(request)
+# Inputs:        request -
+# Outputs:
+# Exceptions:    None
+# Description:   Save result XSLT for a template.
+#
+################################################################################
+def save_result_xslt(request):
+    template_id = request.session['moduleTemplateID']
+    idXsltShort = request.POST.get('idXsltShort')
+    idXsltDetailed = request.POST.get('idXsltDetailed')
+    #We retrieve the exporter
+    template = Template.objects.get(pk=template_id)
+    #We reinitialise exporters and XSLT
+    template.ResultXsltList = None
+    template.ResultXsltDetailed = None
+    template.save()
+    #We add short XSLT
+    if idXsltShort:
+        shortXslt = ResultXslt.objects.get(pk=idXsltShort)
+        template.ResultXsltList = shortXslt
+    #We add detailed XSLT
+    if idXsltDetailed:
+        detailedXSLT = ResultXslt.objects.get(pk=idXsltDetailed)
+        template.ResultXsltDetailed = detailedXSLT
+
+    if idXsltShort or idXsltDetailed:
+        template.save()
+
+    return HttpResponse(json.dumps({}), content_type='application/javascript')
+
+
+################################################################################
+#
+# Function Name: check_name(request)
+# Inputs:        request -
+# Outputs:
+# Exceptions:    None
+# Description:   Check the name of the template.
+#
+################################################################################
+def check_name(request):
+    name = request.POST['name']
+    # check that the name is unique
+    names = Template.objects.all().values_list('title')
+    if name in names:
+        response_dict = {'errors': 'True'}
+        return HttpResponse(json.dumps(response_dict), content_type='application/javascript')
     return HttpResponse(json.dumps({}), content_type='application/javascript')

@@ -11,7 +11,6 @@
  * 
  */
 
-
 /**
  * AJAX call, checks that a template is selected
  * @param selectedLink redirection link
@@ -176,7 +175,7 @@ saveForm = function()
 				Save: function() {				 
 					$( this ).dialog( "close" );
 					var rootElement = document.getElementsByName("xsdForm")[0];
-					var xmlString = '';						
+					var xmlString = '';
 				    xmlString = generateXMLString (rootElement);
 					save_form(xmlString);
                 },
@@ -266,14 +265,26 @@ validateXML = function()
 {
 	var rootElement = document.getElementsByName("xsdForm")[0];
 	var xmlString = '';
-	
+
     xmlString = generateXMLString (rootElement);
     
-    $("input").each(function(){
+    $("input:text").each(function(){
 	    $(this).attr("value", $(this).val());
 	});
 	$('select option').each(function(){ this.defaultSelected = this.selected; });
+	$("input:checkbox:not(:checked)").each(function(){
+	    
+	    $(this).removeAttr("checked");
+	});
+	$("input:checkbox:checked").each(function(){
+    
+	    $(this).attr("checked", true);
+	});
+	$("textarea").each(function(){
+	    $(this).text($(this).val());
+	});
 
+	
     xsdForm = $('#xsdForm').html();
     validate_xml_data(xmlString, xsdForm);
 }
@@ -298,7 +309,12 @@ validate_xml_data = function(xmlString, xsdForm){
                  $("#saveErrorMessage").html(data.errors);
                 saveXMLDataToDBError();
             }else{
-                viewData();
+            	useErrors = checkElementUse();
+            	if (useErrors.length > 0){
+            		useErrosAndView(useErrors);
+            	}else{
+            		viewData();
+            	}
             }
         }
     });
@@ -328,18 +344,14 @@ generateXMLString = function(elementObj)
 					xmlString += generateXMLString(children[i]);
 				}else if ($(children[i]).hasClass("sequence") ) { // the node is a sequence
 					xmlString += generateXMLString(children[i]);
-				}else if ($(children[i]).hasClass("element") ){ // the node is an element
-					var textNode = $(children[i]).contents().filter(function(){
-				        return this.nodeType === 3;
-				    }).text().trim();
+				}else if ($(children[i]).hasClass("element") ){ // the node is an element				
+					var tag = $(children[i]).attr('tag');
 					
 					// get attributes
 					var attributes = ""
 					$(children[i]).children("ul").children("li.attribute:not(.removed)").each(function(){
-						var text = $(this).contents().filter(function(){
-					        return this.nodeType === 3;
-					    }).text().trim();
-					
+						var attr_tag = $(this).attr('tag');
+										
 						attrChildren = $(this).children();					
  
 						var value= ""
@@ -352,22 +364,32 @@ generateXMLString = function(elementObj)
 								    value = attrChildren[j].options[idx].value; 
 							    }
 							} else if (attrChildren[j].tagName == "INPUT") {
-								console.log(attrChildren[j]);
 								value = attrChildren[j].value;
-							}
+							} else if (attrChildren[j].tagName == "DIV" && $(attrChildren[j]).hasClass("module") ){
+								value += $($(attrChildren[j]).parent()).find(".moduleResult").text();		
+							} 
 						}						
-						attributes += " " + text + "='" + value + "'";
+						attributes += " " + attr_tag + "='" + value + "'";
 					});
-					// build opening tag with potential attributes
-					xmlString += "<" + textNode + attributes + ">";
-					// build the content of the element
-				    xmlString += generateXMLString(children[i]);
-				    // build the closing tag
-				    xmlString += "</" + textNode + ">";
+										
+					// build the tag with its value
+					xml_value = generateXMLString(children[i]);
+					if ($(children[i]).children('div.module').length != 0 && xml_value.match("^<" + tag)){
+						// if the module returns the tag, replace the tag
+						xmlString += xml_value;
+					}else{
+						// build opening tag with potential attributes
+						xmlString += "<" + tag + attributes + ">";
+						// build opening tag with potential attributes
+						xmlString += xml_value;
+						// build the closing tag
+					    xmlString += "</" + tag + ">";
+					}
 				}			    	
 			}
 		} else if (children[i].tagName == "DIV" && $(children[i]).hasClass("module") ){
-			xmlString += $($(children[i]).parent()).find(".moduleResult").text();		
+//			console.log(children[i]);
+			xmlString += $($(children[i]).parent()).find(".moduleResult").text();
 		} else if (children[i].tagName == "SELECT") {
 		    // get the index of the selected option 
 		    var idx = children[i].selectedIndex; 
@@ -418,10 +440,21 @@ changeChoice = function(selectObj)
     // the choice is not yet generated
     if ($("#" + selectObj.id + "-" + idx).children().length == 0){
         // save values in the form
-        $("input").each(function(){
-	        $(this).attr("value", $(this).val());
-	    });
-	    $('select option').each(function(){ this.defaultSelected = this.selected; });
+        $("input:text").each(function(){
+    	    $(this).attr("value", $(this).val());
+    	});
+    	$('select option').each(function(){ this.defaultSelected = this.selected; });
+    	$("input:checkbox:not(:checked)").each(function(){
+    	    
+    	    $(this).removeAttr("checked");
+    	});
+    	$("input:checkbox:checked").each(function(){
+        
+    	    $(this).attr("checked", true);
+    	});
+    	$("textarea").each(function(){
+    	    $(this).text($(this).val());
+    	});
 	    // generate selected choice
         generate(selectObj.id.substr(6) + "-" + idx, "choice");
     }
@@ -568,7 +601,7 @@ generate_xsd_form = function(){
             $('#periodicTableMultiple').html(data.periodicTableMultiple);
             $('#xsdForm').html(data.xsdForm);
             setTimeout(disable_elements ,0);
-            
+
             initModules();
         },
     });
@@ -704,14 +737,14 @@ downloadXSD = function()
 downloadCurrentXML = function()
 {
     console.log('BEGIN [downloadCurrentXML]');
-    
+
 	var rootElement = document.getElementsByName("xsdForm")[0];
 	var xmlString = '';
-    
+
     xmlString = generateXMLString (rootElement);   
     
     download_current_xml(xmlString);
-    
+
     console.log('END [downloadCurrentXML]');
 }
 
@@ -851,10 +884,22 @@ changeHTMLForm = function(operation, tagID)
 {
     console.log('BEGIN [changeHTMLForm(' + operation + ')]');
     
-    $("input").each(function(){
+    // save values in the form
+    $("input:text").each(function(){
 	    $(this).attr("value", $(this).val());
 	});
 	$('select option').each(function(){ this.defaultSelected = this.selected; });
+	$("input:checkbox:not(:checked)").each(function(){
+	    
+	    $(this).removeAttr("checked");
+	});
+	$("input:checkbox:checked").each(function(){
+    
+	    $(this).attr("checked", true);
+	});
+	$("textarea").each(function(){
+	    $(this).text($(this).val());
+	});
 
     if (operation == 'add') {
         // the element has to be created
@@ -1224,5 +1269,105 @@ delete_form = function(formID){
         error:function(data){
         	window.location = "/my-profile/my-forms"
         }
+    });
+}
+
+
+/**
+ * AJAX call, cancel a form currently being entered
+ */
+cancelForm = function(){
+	$(function() {
+        $( "#dialog-cancel-message" ).dialog({
+            modal: true,
+            buttons: {
+            	Cancel: function() {
+                    $( this ).dialog( "close" );
+                },
+            	Confirm: function() {
+            		$.ajax({
+            	        url : "/curate/cancel-form",
+            	        type : "GET",
+            	        dataType: "json",
+            			success: function(data){
+            				window.location = "/curate"
+            		    },
+            	    });
+                },
+            }
+        });
+    });
+}
+
+
+/**
+ * Check required, recommended elements
+ */
+checkElementUse = function(){
+	required_count = 0
+	$(".required input:visible").each(function(){
+		if (!$(this).closest("li").hasClass("removed")){
+		  if($(this).val().trim() == ""){
+		    required_count += 1;
+		  }
+		}
+	});
+	$(".required textarea:visible").each(function(){
+		if (!$(this).closest("li").hasClass("removed")){
+			if($(this).val().trim() == ""){
+		    required_count += 1;
+		  }
+		}
+	});
+	
+	recommended_count = 0
+	$(".recommended input:visible").each(function(){
+		if (!$(this).closest("li").hasClass("removed")){
+		  if($(this).val().trim() == ""){
+			  recommended_count += 1;
+		  }
+		}
+	});
+	$(".recommended textarea:visible").each(function(){
+		if (!$(this).closest("li").hasClass("removed")){
+			if($(this).val().trim() == ""){
+			  recommended_count += 1;
+		  }
+		}
+	});
+	
+	errors = ""
+	if (required_count > 0 || recommended_count > 0){
+		errors = "<ul>"
+		errors += "<li>" + required_count.toString() + " required element(s) are empty.</li>"
+		errors += "<li>" + recommended_count.toString() + " recommended element(s) are empty.</li>"
+		errors += "</ul>"
+	}
+	
+	return errors;
+}
+
+/**
+ * Displays use error before viewing data
+ */
+useErrosAndView = function(errors){
+	$("#useErrorMessage").html(errors);
+	$(function() {
+        $( "#dialog-use-message" ).dialog({
+            modal: true,
+            height: 280,
+            width: 500,
+            buttons: {
+            	Edit: function() {
+            		$( this ).dialog( "close" );
+                },
+                Review: function() {
+                    viewData();
+                },
+            },
+            close: function(){
+            	$("#useErrorMessage").html("");
+            }
+        });
     });
 }

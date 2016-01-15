@@ -1,4 +1,5 @@
-from modules.builtin.models import InputModule, OptionsModule, SyncInputModule, AutoCompleteModule
+from modules.builtin.models import InputModule, OptionsModule, SyncInputModule, AutoCompleteModule,\
+    CheckboxesModule
 from modules.exceptions import ModuleError
 from django.conf import settings
 import os
@@ -6,7 +7,10 @@ from modules.xpathaccessor import XPathAccessor
 from modules.models import Module
 
 
-RESOURCES_PATH = os.path.join(settings.SITE_ROOT, 'modules/examples/resources/')
+RESOURCES_PATH = os.path.join(settings.SITE_ROOT, 'modules', 'examples', 'resources')
+TEMPLATES_PATH = os.path.join(RESOURCES_PATH, 'html')
+SCRIPTS_PATH = os.path.join(RESOURCES_PATH, 'js')
+STYLES_PATH = os.path.join(RESOURCES_PATH, 'css')
 
 class PositiveIntegerInputModule(InputModule):
     def __init__(self):
@@ -85,9 +89,9 @@ class ListToGraphInputModule(SyncInputModule):
     
     def __init__(self):
         SyncInputModule.__init__(self, label='Enter a list of numbers', modclass='list_to_graph',
-                                  styles=[os.path.join(RESOURCES_PATH, 'css/list_to_graph.css')],
+                                  styles=[os.path.join(STYLES_PATH, 'list_to_graph.css')],
                                   scripts=["https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js",
-                                           os.path.join(RESOURCES_PATH, 'js/list_to_graph.js')])
+                                           os.path.join(SCRIPTS_PATH, 'list_to_graph.js')])
 
     def _get_module(self, request):
         return SyncInputModule.get_module(self, request)
@@ -137,8 +141,8 @@ class ExampleAutoCompleteModule(AutoCompleteModule):
             'Others'
         ]
 
-        AutoCompleteModule.__init__(self, label='Material Name', scripts=[os.path.join(RESOURCES_PATH,
-                                                                                       'js/example_autocomplete.js')])
+        AutoCompleteModule.__init__(self, label='Material Name', scripts=[os.path.join(SCRIPTS_PATH,
+                                                                                       'example_autocomplete.js')])
 
     def _get_module(self, request):
         return AutoCompleteModule.get_module(self, request)
@@ -296,3 +300,37 @@ class FlagModule(Module):
 
     def _post_result(self, request):
         return str(request.POST['data'])
+
+
+class ChemicalElementCheckboxesModule(CheckboxesModule):
+    
+    def __init__(self):
+        self.options = {
+            'Ac': 'Actinium',
+            'Al': 'Aluminum',
+            'Ag': 'Silver',
+            'Am': 'Americium',
+            'Ar': 'Argon',
+            'As': 'Arsenic',
+            'At': 'Astatine',
+            'Au': 'Gold'
+        }
+                
+        CheckboxesModule.__init__(self, options=self.options, label='Select elements', name='chemical')
+
+    def _get_module(self, request):
+        return CheckboxesModule.get_module(self, request)
+
+    def _get_display(self, request):
+        return ''
+
+    def _get_result(self, request):
+        return ''
+
+    def _post_display(self, request):
+        return ''
+
+    def _post_result(self, request):
+        if 'data[]' in request.POST:
+            return str(request.POST['data[]'])
+    

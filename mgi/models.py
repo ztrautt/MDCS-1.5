@@ -20,10 +20,12 @@ from mongoengine import *
 from collections import OrderedDict
 from bson.objectid import ObjectId
 import xmltodict
-from pymongo import MongoClient
+from pymongo import MongoClient, TEXT, ASCENDING, DESCENDING
 from mgi.settings import MONGODB_URI
+import re
+from mgi import settings
+import datetime
 
- 
 class Request(Document):
     """Represents a request sent by an user to get an account"""
     username = StringField(required=True)
@@ -32,14 +34,31 @@ class Request(Document):
     last_name = StringField(required=True)
     email = StringField(required=True)    
 
-
 class Message(Document):
     """Represents a message sent via the Contact form"""
     name = StringField(max_length=100)
     email = EmailField()
     content = StringField()
 
+class Exporter(Document, EmbeddedDocument):
+    """Represents an exporter"""
+    name = StringField(required=True, unique=True)
+    url = StringField(required=True)
+    available_for_all = BooleanField(required=True)
 
+class ExporterXslt(Document, EmbeddedDocument):
+    """Represents an xslt file for exporter"""
+    name = StringField(required=True, unique=True)
+    filename = StringField(required=True)
+    content = StringField(required=True)
+    available_for_all = BooleanField(required=True)
+
+class ResultXslt(Document, EmbeddedDocument):
+    """Represents an xslt file for result representation"""
+    name = StringField(required=True, unique=True)
+    filename = StringField(required=True)
+    content = StringField(required=True)
+    
 class Template(Document):
     """Represents an XML schema template that defines the structure of data for curation"""
     title = StringField(required=True)
@@ -50,7 +69,10 @@ class Template(Document):
     hash = StringField(required=True)
     user = StringField(required=False)
     dependencies = ListField(StringField())
-
+    exporters = ListField(ReferenceField(Exporter, reverse_delete_rule=PULL))
+    XSLTFiles = ListField(ReferenceField(ExporterXslt, reverse_delete_rule=PULL))
+    ResultXsltList = ReferenceField(ResultXslt, reverse_delete_rule=NULLIFY)
+    ResultXsltDetailed = ReferenceField(ResultXslt, reverse_delete_rule=NULLIFY)
 
 class TemplateVersion(Document):
     """Manages versions of templates"""
@@ -59,8 +81,7 @@ class TemplateVersion(Document):
     current = StringField()
     nbVersions = IntField(required=True)
     isDeleted = BooleanField(required=True)
-
-
+    
 class Type(Document):    
     """Represents an XML schema type to use to compose XML Schemas"""
     title = StringField(required=True)
@@ -71,8 +92,7 @@ class Type(Document):
     hash = StringField(required=True)
     user = StringField(required=False)
     dependencies = ListField(StringField())
-
-
+    
 class TypeVersion(Document):
     """Manages versions of types"""
     versions = ListField(StringField())
@@ -80,14 +100,12 @@ class TypeVersion(Document):
     current = StringField()
     nbVersions = IntField(required=True)
     isDeleted = BooleanField(required=True)
-
-
+    
 class MetaSchema(Document):
     """Stores more information about templates/types"""
     schemaId = StringField(required=True, unique=True)
     flat_content = StringField(required=True)
     api_content = StringField(required=True)
-
 
 class Instance(Document):
     """Represents an instance of a remote MDCS"""
@@ -98,7 +116,6 @@ class Instance(Document):
     access_token = StringField(required=True)
     refresh_token = StringField(required=True)
     expires = DateTimeField(required=True)
-
 
 class QueryResults(Document):
     """Stores results from a query (Query By Example)"""
@@ -112,7 +129,6 @@ class SavedQuery(Document):
     query = StringField(required=True)
     displayedQuery = StringField(required=True)
 
-
 class Module(Document):
     """Represents a module, that will replace an existing input during curation"""
     name = StringField(required=True)
@@ -124,17 +140,18 @@ class XML2Download(Document):
     """Temporarily stores the content of an XML document to download"""
     title = StringField(required=True)
     xml = StringField(required=True)    
-
     
 class PrivacyPolicy(Document):
     """Privacy Policy of the MDCS"""
     content = StringField()
-
     
 class TermsOfUse(Document):
     """Terms of Use of the MDCS"""
     content = StringField()
-
+    
+class Help(Document):
+    """Help of the MDCS"""
+    content = StringField()
     
 class Bucket(Document):
     """Represents a bucket to store types by domain"""
@@ -144,7 +161,9 @@ class Bucket(Document):
 
 
 class XMLElement(Document):
-    """Stores information about an XML element and its occurrences"""
+    """
+        Stores information about an XML element and its occurrences
+    """
     xsd_xpath = StringField() 
     nbOccurs = IntField()
     minOccurs = FloatField()
@@ -152,7 +171,9 @@ class XMLElement(Document):
 
 
 class FormElement(Document):
-    """Stores information about an element in the HTML form"""
+    """
+        Stores information about an element in the HTML form
+    """
     html_id = StringField()
     xml_xpath = StringField() # for siblings module
     xml_element = ReferenceField(XMLElement)
@@ -184,7 +205,7 @@ def postprocessor(path, key, value):
 class XMLdata():
     """Wrapper to manage JSON Documents, like mongoengine would have manage them (but with ordered data)"""
 
-    def __init__(self, schemaID=None, xml=None, json=None, title=""):
+    def __init__(self, schemaID=None, xml=None, json=None, title="", iduser=None, ispublished=False, publicationdate=None):
         """                                                                                                                                                                                                                   
             initialize the object                                                                                                                                                                                             
             schema = ref schema (Document)                                                                                                                                                                                    
@@ -209,6 +230,24 @@ class XMLdata():
         else:
             # insert the json content after                                                                                                                                                                                       
             self.content['content'] = xmltodict.parse(xml, postprocessor=postprocessor)
+        #id user
+        if (iduser is not None):
+            self.content['iduser'] = iduser
+
+        self.content['ispublished'] = ispublished
+        if (publicationdate is not None):
+            self.content['publicationdate'] = publicationdate
+
+    @staticmethod
+    def initIndexes():
+        #create a connection
+        client = MongoClient(MONGODB_URI)
+        # connect to the db 'mgi'
+        db = client['mgi']
+        # get the xmldata collection
+        xmldata = db['xmldata']
+        # create the full text index
+        xmldata.create_index([('$**', TEXT)], default_language="en", language_override="en")
 
 
     def save(self):
@@ -288,13 +327,12 @@ class XMLdata():
         # get the xmldata collection
         xmldata = db['xmldata']
         # query mongo db
-        cursor = xmldata.find(query,as_class = OrderedDict)  
-        # build a list with the xml representation of objects that match the query              
+        cursor = xmldata.find(query,as_class = OrderedDict)
+        # build a list with the xml representation of objects that match the query
         results = []
         for result in cursor:
             results.append(result)
         return results
-
 
     @staticmethod
     def get(postID):
@@ -308,7 +346,22 @@ class XMLdata():
         # get the xmldata collection
         xmldata = db['xmldata']
         return xmldata.find_one({'_id': ObjectId(postID)}, as_class = OrderedDict)
-    
+
+
+    @staticmethod
+    def getByIDsAndDistinctBy(listIDs, distinctBy=None):
+        """
+            Returns the object with the given id
+        """
+        # create a connection
+        client = MongoClient(MONGODB_URI)
+        # connect to the db 'mgi'
+        db = client['mgi']
+        # get the xmldata collection
+        xmldata = db['xmldata']
+        listIDs = [ObjectId(x) for x in listIDs]
+        return xmldata.find({'_id': { '$in': listIDs }}, as_class = OrderedDict).distinct(distinctBy)
+
     
     @staticmethod
     def delete(postID):
@@ -363,5 +416,61 @@ class XMLdata():
         json = {'content': json_content, 'title': title}
                     
         xmldata.update({'_id': ObjectId(postID)}, {"$set":json}, upsert=False)
+
+    @staticmethod
+    def update_publish(postID):
+        """
+            Update the object with the given id
+        """
+        # create a connection
+        client = MongoClient(MONGODB_URI)
+        # connect to the db 'mgi'
+        db = client['mgi']
+        # get the xmldata collection
+        xmldata = db['xmldata']
+        xmldata.update({'_id': ObjectId(postID)}, {'$set':{'publicationdate': datetime.datetime.now(), 'ispublished': True}}, upsert=False)
+
+    @staticmethod
+    def update_unpublish(postID):
+        """
+            Update the object with the given id
+        """
+        # create a connection
+        client = MongoClient(MONGODB_URI)
+        # connect to the db 'mgi'
+        db = client['mgi']
+        # get the xmldata collection
+        xmldata = db['xmldata']
+        xmldata.update({'_id': ObjectId(postID)}, {'$set':{'ispublished': False}}, upsert=False)
+
+    @staticmethod
+    def executeFullTextQuery(text, templatesID, refinements={}):
+        """
+        Execute a full text query with possible refinements
+        """
+        #create a connection
+        client = MongoClient(MONGODB_URI)
+        # connect to the db 'mgi'
+        db = client['mgi']
+        # get the xmldata collection
+        xmldata = db['xmldata']
+        wordList = re.sub("[^\w]", " ",  text).split()
+        wordList = ['"{0}"'.format(x) for x in wordList]
+        wordList = ' '.join(wordList)
     
+        if len(wordList) > 0:
+            full_text_query = {'$text': {'$search': wordList}, 'schema' : {'$in': templatesID}, }
+        else:
+            full_text_query = {'schema' : {'$in': templatesID} } 
         
+        if len(refinements.keys()) > 0:
+            full_text_query.update(refinements)
+            
+        cursor = xmldata.find(full_text_query, as_class = OrderedDict)
+        
+        results = []
+        for result in cursor:
+            results.append(result)
+        return results
+
+

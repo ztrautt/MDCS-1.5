@@ -31,7 +31,7 @@
 .icon.legend
 {
 	text-indent: 20px;
-	margin-right: 50px;
+	margin-right: 60px;
 	white-space: nowrap; /* Prevent extra text to go on the next line */
 }
 
@@ -201,4 +201,14 @@
 .icon.modules
 {
 	background-position: -260px -40px;
+}
+
+.icon.exporters
+{
+	background-position: -180px 0px;
+}
+
+.icon.resultXslt
+{
+	background-position: -60px -396px;
 }

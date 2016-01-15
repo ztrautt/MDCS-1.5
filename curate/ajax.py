@@ -21,6 +21,7 @@ from io import BytesIO
 from cStringIO import StringIO
 from mgi.models import Template, XMLdata, XML2Download, Module, MetaSchema
 from mgi.models import FormElement, XMLElement, FormData
+from mgi.settings import CURATE_MIN_TREE, CURATE_COLLAPSE
 import json
 from bson.objectid import ObjectId
 from mgi import common
@@ -104,6 +105,11 @@ def validate_xml_data(request):
         # TODO: namespaces
         xmlString = common.manageNamespace(template_id, request.POST['xmlString'])          
         common.validateXMLDocument(template_id, xmlString)
+    except etree.XMLSyntaxError, xse:
+        #xmlParseEntityRef exception: use of & < > forbidden
+        message= "Validation Failed. </br> May be caused by : </br> - Syntax problem </br> - Use of forbidden symbols : '&' or '<' or '>'"
+        response_dict = {'errors': message}
+        return HttpResponse(json.dumps(response_dict), content_type='application/javascript')
     except Exception, e:
         message= e.message.replace('"', '\'')
         response_dict = {'errors': message}
@@ -456,7 +462,7 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
                     
         else: # starting an empty form
             # Don't generate the element if not necessary
-            if request.session['curate_min_tree'] and minOccurs == 0:
+            if CURATE_MIN_TREE and minOccurs == 0:
                 addButton = True
                 deleteButton = False
             else:
@@ -476,7 +482,7 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
             if request.session['curate_edit']:
                 if nbOccurrences == 0:
                     formString += "<ul id=\"" + choiceID + "\" class=\"notchosen\">"
-                    if request.session['curate_min_tree'] == True:
+                    if CURATE_MIN_TREE:
                         form_element = FormElement(html_id=choiceID, xml_element=xml_element, xml_xpath=None).save()
                         request.session['mapTagID'][choiceID] = str(form_element.id)
                         formString += "</ul>"
@@ -486,7 +492,7 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
             else:
                 if (choiceInfo.counter > 0):
                     formString += "<ul id=\"" + choiceID + "\" class=\"notchosen\">"
-                    if request.session['curate_min_tree'] == True:
+                    if CURATE_MIN_TREE:
                         form_element = FormElement(html_id=choiceID, xml_element=xml_element, xml_xpath=None).save()
                         request.session['mapTagID'][choiceID] = str(form_element.id)
                         formString += "</ul>"
@@ -504,7 +510,9 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
             request.session['nb_html_tags'] = str(nb_html_tags)
             form_element = FormElement(html_id=tagID, xml_element=xml_element, xml_xpath=fullPath + '[1]').save()
             request.session['mapTagID'][tagID] = str(form_element.id)
-            formString += "<li class='sequence removed' id='" + str(tagID) + "'>" + "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>"  + text
+            formString += "<li class='sequence removed' id='" + str(tagID) + "'>"
+            formString += "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>" if CURATE_COLLAPSE else "" 
+            formString += text
             formString += "<span id='add"+ str(tagID[7:]) +"' class=\"icon add\" onclick=\"changeHTMLForm('add',"+str(tagID[7:])+");\"></span>"
             formString += "<span id='remove"+ str(tagID[7:]) +"' class=\"icon remove\" style=\"display:none;\" onclick=\"changeHTMLForm('remove',"+str(tagID[7:])+");\"></span>"
         else:
@@ -519,7 +527,9 @@ def generateSequence(request, element, xmlTree, namespace, choiceInfo=None, full
                     
                 # if tag not closed:  <element/>
                 if len(list(element)) > 0 :
-                    formString += "<li class='sequence' id='" + str(tagID) + "'>" + "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>"  + text
+                    formString += "<li class='sequence' id='" + str(tagID) + "'>"
+                    formString += "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>" if CURATE_COLLAPSE else ""
+                    formString += text
                 else:
                     formString += "<li class='sequence' id='" + str(tagID) + "'>" + text
                     
@@ -650,7 +660,7 @@ def generateChoice(request, element, xmlTree, namespace, choiceInfo=None, fullPa
                 
         else: # starting an empty form
             # Don't generate the element if not necessary
-            if request.session['curate_min_tree'] and minOccurs == 0:
+            if CURATE_MIN_TREE and minOccurs == 0:
                 addButton = True
                 deleteButton = False
             else:
@@ -688,7 +698,7 @@ def generateChoice(request, element, xmlTree, namespace, choiceInfo=None, fullPa
         if request.session['curate_edit']:
             if nbOccurrences == 0:
                 formString += "<ul id=\"" + choiceID + "\" class=\"notchosen\">"
-                if request.session['curate_min_tree'] == True:
+                if CURATE_MIN_TREE:
                     form_element = FormElement(html_id=choiceID, xml_element=xml_element, xml_xpath=None).save()
                     request.session['mapTagID'][choiceID] = str(form_element.id)
                     formString += "</ul>"
@@ -698,7 +708,7 @@ def generateChoice(request, element, xmlTree, namespace, choiceInfo=None, fullPa
         else:
             if (choiceInfo.counter > 0):
                 formString += "<ul id=\"" + choiceID + "\" class=\"notchosen\">"
-                if request.session['curate_min_tree'] == True:
+                if CURATE_MIN_TREE:
                     form_element = FormElement(html_id=choiceID, xml_element=xml_element, xml_xpath=None).save()
                     request.session['mapTagID'][choiceID] = str(form_element.id)
                     formString += "</ul>"
@@ -852,8 +862,12 @@ def generateRestriction(request, element, xmlTree, namespace, fullPath="", edit_
             edit_elements = edit_data_tree.xpath(fullPath) 
             selected_value = None   
             if len(edit_elements) > 0:
-                if edit_elements[0].text is not None:
-                    selected_value = edit_elements[0].text                 
+                if '@' in fullPath:
+                    if edit_elements[0] is not None:
+                        selected_value = edit_elements[0]
+                else:
+                    if edit_elements[0].text is not None:
+                        selected_value = edit_elements[0].text
             for enum in enumeration:
                 if selected_value is not None and enum.attrib.get('value') == selected_value:
                     formString += "<option value='" + enum.attrib.get('value')  + "' selected>" + enum.attrib.get('value') + "</option>"
@@ -889,6 +903,12 @@ def generateExtension(request, element, xmlTree, namespace, fullPath="", edit_da
     formString = ""
     
     removeAnnotations(element, namespace)
+    
+#     # does it contain any attributes?
+#     complexTypeChildren = element.findall('{0}attribute'.format(namespace))
+#     if len(complexTypeChildren) > 0:
+#         for attribute in complexTypeChildren:
+#             formString += generateElement(request, attribute, xmlTree, namespace, fullPath=fullPath, edit_data_tree=edit_data_tree)
     
     simpleType = element.find('{0}simpleType'.format(namespace))
     if simpleType is not None:
@@ -937,7 +957,7 @@ def generateComplexType(request, element, xmlTree, namespace, fullPath, edit_dat
         formString += generateSimpleContent(request, complexTypeChild, xmlTree, namespace, fullPath=fullPath, edit_data_tree=edit_data_tree)
         return formString
     
-    # does it contain a attributes?
+    # does it contain any attributes?
     complexTypeChildren = element.findall('{0}attribute'.format(namespace))
     if len(complexTypeChildren) > 0:
         for attribute in complexTypeChildren:
@@ -993,6 +1013,37 @@ def generateSimpleContent(request, element, xmlTree, namespace, fullPath, edit_d
     return formString
 
 
+def get_Xml_element_data(xsd_element, xml_element, namespace):
+    reload_data = None
+    
+    # get data
+    if xsd_element.tag == "{0}element".format(namespace):
+        # leaf: get the value            
+        if len(list(xml_element)) == 0:
+            if xml_element.text is not None: # when tag is present but value empty, takes value None (we need empty text)
+                reload_data = xml_element.text
+            else:
+                reload_data = ''
+        else: # branch: get the whole branch
+            reload_data = etree.tostring(xml_element)
+    elif xsd_element.tag == "{0}attribute".format(namespace):
+        pass
+    elif xsd_element.tag == "{0}complexType".format(namespace) or xsd_element.tag == "{0}simpleType".format(namespace):
+        # leaf: get the value            
+        if len(list(xml_element)) == 0:
+            if xml_element.text is not None: # when tag is present but value empty, takes value None (we need empty text)
+                reload_data = xml_element.text
+            else:
+                reload_data = ''
+        else: # branch: get the whole branch
+            try:
+                reload_data = etree.tostring(xml_element)
+            except:
+                reload_data = str(xml_element)
+            
+    return reload_data
+
+
 ################################################################################
 # 
 # Function Name: generateModule(request, element)
@@ -1007,30 +1058,24 @@ def generateModule(request, element, namespace, xsd_xpath=None, xml_xpath=None, 
     formString = ""
     
     reload_data = None
+    reload_attrib = None
     if request.session['curate_edit']:
         edit_elements = edit_data_tree.xpath(xml_xpath)
         if len(edit_elements) > 0:
-            edit_element = edit_elements[0]
-            if element.tag == "{0}element".format(namespace):
-                # leaf: get the value            
-                if len(list(edit_element)) == 0:
-                    if edit_element.text is not None: # when tag is present but value empty, takes value None (we need empty text)
-                        reload_data = edit_element.text
-                    else:
-                        reload_data = ''
-                else: # branch: get the whole branch
-                    reload_data = etree.tostring(edit_element)
-            elif element.tag == "{0}attribute".format(namespace):
-                pass
-            elif element.tag == "{0}complexType".format(namespace) or element.tag == "{0}simpleType".format(namespace):
-                # leaf: get the value            
-                if len(list(edit_element)) == 0:
-                    if edit_element.text is not None: # when tag is present but value empty, takes value None (we need empty text)
-                        reload_data = edit_element.text
-                    else:
-                        reload_data = ''
-                else: # branch: get the whole branch
-                    reload_data = etree.tostring(edit_element) 
+            if len(edit_elements) == 1:
+                edit_element = edit_elements[0]
+                # get attributes
+                if 'attribute' not in xsd_xpath and len(edit_element.attrib) > 0:
+                    reload_attrib = dict(edit_element.attrib)
+                reload_data = get_Xml_element_data(element, edit_element, namespace)
+            else:
+                reload_data = []
+                reload_attrib = []
+                for edit_element in edit_elements:                
+                    reload_attrib.append(dict(edit_element.attrib))
+                    reload_data.append(get_Xml_element_data(element, edit_element, namespace))
+                    
+                    
     
     # check if a module is set for this element    
     if '{http://mdcs.ns}_mod_mdcs_' in element.attrib:
@@ -1041,19 +1086,23 @@ def generateModule(request, element, namespace, xsd_xpath=None, xml_xpath=None, 
             view = get_module_view(url)
 
             # build a request to send to the module to initialize it
-            mod_req = HttpRequest()
+            mod_req = request
             mod_req.method = 'GET'
             
             mod_req.GET = {
                 'url': url,
+                'xsd_xpath': xsd_xpath,
+                'xml_xpath': xml_xpath,
             }
 
             # if the loaded doc has data, send them to the module for initialization
             if reload_data is not None:
                 mod_req.GET['data'] = reload_data
+            if reload_attrib is not None:
+                mod_req.GET['attributes'] = reload_attrib
 
             # renders the module
-            formString += view(mod_req).content
+            formString += view(mod_req).content.decode("utf-8")
     
     return formString
 
@@ -1100,21 +1149,18 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
     
     formString = ""
 
-    # remove the annotations
-    removeAnnotations(element, namespace)
+    # get appinfo elements
+    app_info = common.getAppInfo(element, namespace)        
     
     # check if the element has a module
     has_module = hasModule(request, element)
-    isInAChoice = 'choice' in element.getparent().tag
     
     # check if XML element or attribute
     if element.tag == "{0}element".format(namespace):
         minOccurs, maxOccurs = manageOccurences(element)
-#         addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
         element_tag='element'
     elif element.tag == "{0}attribute".format(namespace):
         minOccurs, maxOccurs = manageAttrOccurrences(element)
-#         addButton, deleteButton, nbOccurrences = manageButtons(minOccurs, maxOccurs)
         element_tag='attribute'
         
     # get the name of the element, go find the reference if there's one
@@ -1136,8 +1182,6 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
         if refElement is not None:
             textCapitalized = refElement.attrib.get('name')            
             element = refElement
-            # remove the annotations
-            removeAnnotations(element, namespace)
             # check if the element has a module
             has_module = hasModule(request, element)
     else:
@@ -1159,7 +1203,8 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
     nbOccurrences = 1 #nb of occurrences to render (can't be 0 or the user won't see this element at all)
     nbOccurrences_data = minOccurs # nb of occurrences in loaded data or in form being rendered (can be 0)
     xml_element = None      
-    removed = ""
+    use = ""
+    removed = False
     
     # loading data in the form 
     if request.session['curate_edit']:
@@ -1168,7 +1213,8 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
         nbOccurrences_data = len(edit_elements)
         
         if nbOccurrences_data == 0:
-            removed = " removed"
+            use = "removed"
+            removed = True
 
         # manage buttons
         if nbOccurrences_data < maxOccurs:
@@ -1178,35 +1224,23 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
 
     else: # starting an empty form
         # Don't generate the element if not necessary
-        if request.session['curate_min_tree'] and minOccurs == 0:
-            removed = " removed"
+        if CURATE_MIN_TREE and minOccurs == 0:
+            use = "removed"
+            removed = True
         
         if nbOccurrences_data < maxOccurs:
             addButton = True
         if nbOccurrences_data > minOccurs:
             deleteButton = True
-        
-    if nbOccurrences_data > nbOccurrences:
+    
+    if has_module:
+        # block maxOccurs to one, the module should take care of occurrences when the element is replaced
+        nbOccurrences = 1
+        maxOccurs = 1
+    elif nbOccurrences_data > nbOccurrences:
         nbOccurrences = nbOccurrences_data    
     
-    xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
-
-    # this reduce the number of xml_element stored, but may crash for xpath accessor if xpath not found
-    # not a choice: we need to store all options if choice
-#     if not isInAChoice: 
-#         # data being edited
-#         if request.session['curate_edit']:
-#             # cannot remove or add occurrences
-#             if not(minOccurs == maxOccurs == nbOccurrences_data):
-#                 xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
-#         # empty form
-#         else: 
-#             # cannot remove or add occurrences
-#             if not(minOccurs == maxOccurs):
-#                 xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
-#     else:
-#         xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()
-    
+    xml_element = XMLElement(xsd_xpath=xsd_xpath, nbOccurs=nbOccurrences_data, minOccurs=minOccurs, maxOccurs=maxOccurs).save()  
     
     # management of elements inside a choice (don't display if not part of the currently selected choice)
     if choiceInfo:
@@ -1214,7 +1248,7 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
         if request.session['curate_edit']:
             if len(edit_elements) == 0:
                 formString += "<ul id=\"" + choiceID + "\" class=\"notchosen\">"
-                if request.session['curate_min_tree'] == True:
+                if CURATE_MIN_TREE:
                     form_element = FormElement(html_id=choiceID, xml_element=xml_element, xml_xpath=fullPath).save()
                     request.session['mapTagID'][choiceID] = str(form_element.id)
                     formString += "</ul>"
@@ -1224,7 +1258,7 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
         else:
             if (choiceInfo.counter > 0):
                 formString += "<ul id=\"" + choiceID + "\" class=\"notchosen\">"
-                if request.session['curate_min_tree'] == True:
+                if CURATE_MIN_TREE:
                     form_element = FormElement(html_id=choiceID, xml_element=xml_element, xml_xpath=fullPath).save()
                     request.session['mapTagID'][choiceID] = str(form_element.id)
                     formString += "</ul>"
@@ -1234,6 +1268,7 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
     else:
         formString += "<ul>"
     
+
     elementType = getElementType(element, xmlTree, namespace, defaultPrefix)
     
     for x in range (0,int(nbOccurrences)): 
@@ -1244,22 +1279,30 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
         form_element = FormElement(html_id=tagID, xml_element=xml_element, xml_xpath=fullPath + '[' + str(x+1) +']', name=textCapitalized).save()
         request.session['mapTagID'][tagID] = str(form_element.id)
     
-        # renders the name of the element
-        formString += "<li class='"+ element_tag + removed +"' id='" + str(tagID) + "'>"
-        if elementType is not None and elementType.tag == "{0}complexType".format(namespace): # the type is complex, can be collapsed
-            formString += "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>"
+        # get the use from app info element
+        app_info_use = app_info['use'] if 'use' in app_info else ''
+        app_info_use = app_info_use if app_info_use is not None else ''
+        use += ' ' + app_info_use
         
-        formString += textCapitalized
+        # renders the name of the element
+        formString += "<li class='"+ element_tag + ' ' + use +"' id='" + str(tagID) + "' tag='"+textCapitalized+"'>"
+        if CURATE_COLLAPSE:
+            if elementType is not None and elementType.tag == "{0}complexType".format(namespace): # the type is complex, can be collapsed
+                formString += "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>"
+        
+        label = app_info['label'] if 'label' in app_info else textCapitalized
+        label = label if label is not None else ''
+        formString += label
         # add buttons to add/remove elements
         buttons = ""
         if not (addButton is False and deleteButton is False):
             buttons = renderButtons(addButton, deleteButton, tagID[7:])
         
         # if element not removed
-        if len(removed) == 0:
+        if removed == False:
             # if module is present, replace default input by module       
             if has_module:
-                formString += generateModule(request, element, namespace, xsd_xpath, fullPath+'['+ str(x+1) +']', edit_data_tree=edit_data_tree)
+                formString += generateModule(request, element, namespace, xsd_xpath, fullPath, edit_data_tree=edit_data_tree)
             else: # generate the type
                 if elementType is None: # no complex/simple type            
                     defaultValue = ""
@@ -1282,7 +1325,13 @@ def generateElement(request, element, xmlTree, namespace, choiceInfo=None, fullP
                         # if the default attribute is present                        
                         defaultValue = element.attrib['default']
                     
-                    formString += " <input type='text' value='"+ django.utils.html.escape(defaultValue) +"'/>" 
+                    placeholder = 'placeholder="'+app_info['placeholder']+ '"' if 'placeholder' in app_info else ''
+                    placeholder = placeholder if placeholder is not None else ''
+                    
+                    tooltip = 'title="'+app_info['tooltip']+ '"' if 'tooltip' in app_info else ''
+                    tooltip = tooltip if tooltip is not None else ''
+                    
+                    formString += " <input type='text' value='"+ django.utils.html.escape(defaultValue) +"'" + placeholder + tooltip +"/>" 
                     formString += buttons
                 else: # complex/simple type 
                     formString += buttons             
@@ -1321,8 +1370,14 @@ def getElementType(element, xmlTree, namespace, defaultPrefix):
     try:
         if 'type' not in element.attrib: # element with type declared below it
             # if tag not closed:  <element/>
-            if len(list(element)) > 0 :
-                return element[0]
+            if len(list(element)) == 1:
+                if element[0].tag == "{0}annotation".format(namespace):
+                    return None
+                else:
+                    return element[0]
+            # with annotations
+            elif len(list(element)) == 2:
+                return element[1]
             else:
                 return None
         else: # element with type attribute
@@ -1554,7 +1609,8 @@ def generateElement_absent(request, element, xmlDocTree, form_element):
 
     namespace = namespaces[defaultPrefix]
 
-    removeAnnotations(element, namespace)
+    # get appinfo elements
+    app_info = common.getAppInfo(element, namespace)
     
     # check if the element has a module
     has_module = hasModule(request, element)
@@ -1572,24 +1628,27 @@ def generateElement_absent(request, element, xmlDocTree, form_element):
 
         if refElement is not None:
             element = refElement
-            # remove the annotations
-            removeAnnotations(element, namespace)
             # check if the element has a module
             has_module = hasModule(request, element)
-
-    elementType = getElementType(element, xmlDocTree, namespace, defaultPrefix)
-
+  
     if has_module:
         formString += generateModule(request, element, namespace, form_element.xml_element.xsd_xpath, form_element.xml_xpath)
     else:
+        elementType = getElementType(element, xmlDocTree, namespace, defaultPrefix)
         # render the type
         if elementType is None: # no complex/simple type            
             defaultValue = ""
             if 'default' in element.attrib:
                 # if the default attribute is present
                 defaultValue = element.attrib['default']
-       
-            formString += " <input type='text' value='"+ django.utils.html.escape(defaultValue) +"'/>" 
+           
+            placeholder = 'placeholder="'+app_info['placeholder']+ '"' if 'placeholder' in app_info else ''
+            placeholder = placeholder if placeholder is not None else ''
+            
+            tooltip = 'title="'+app_info['tooltip']+ '"' if 'tooltip' in app_info else ''
+            tooltip = tooltip if tooltip is not None else ''
+            
+            formString += " <input type='text' value='"+ django.utils.html.escape(defaultValue) +"'" + placeholder + tooltip +"/>" 
         else: # complex/simple type      
             if elementType.tag == "{0}complexType".format(namespace):
                 formString += generateComplexType(request, elementType, xmlDocTree, namespace, fullPath=form_element.xml_xpath)
@@ -1638,9 +1697,6 @@ def generate_absent(request):
 
     element = xmlDocTree.xpath(xml_element.xsd_xpath, namespaces=xpath_namespaces)[0]
 
-    # remove the annotations
-    removeAnnotations(element, namespace)
-
     # generating a choice, generate the parent element
     if tag == "choice":
         # can use generateElement to generate a choice never generated
@@ -1664,6 +1720,8 @@ def generate_absent(request):
         generated_element = html.fragment_fromstring(formString)
         if generated_element.tag == "ul":
             currentElement.append(generated_element)
+        elif generated_element.tag == "div":
+            currentElement.insert(3, generated_element)
         else:
             currentElement.insert(0, generated_element)
     except:
@@ -1674,7 +1732,7 @@ def generate_absent(request):
     # update the number of elements in database
     xml_element.nbOccurs = 1
     xml_element.save()
-
+    
     if tag == "element":
         # updates buttons
         addButton = False
@@ -1794,9 +1852,11 @@ def duplicate(request):
         elif sequenceChild.tag == "{0}choice".format(namespace):
             element_tag = 'choice'
         
-        # remove the annotations
-        removeAnnotations(sequenceChild, namespace)
-
+        # get appinfo elements
+        app_info = common.getAppInfo(sequenceChild, namespace)  
+        
+        has_module = hasModule(request, sequenceChild)        
+            
         if element_tag == "element" or element_tag == "attribute":
             # type is a reference included in the document
             if 'ref' in sequenceChild.attrib: 
@@ -1816,88 +1876,67 @@ def duplicate(request):
                 if refElement is not None:
                     textCapitalized = refElement.attrib.get('name')            
                     sequenceChild = refElement
-                    # remove the annotations
-                    removeAnnotations(sequenceChild, namespace)
             else:
                 textCapitalized = sequenceChild.attrib.get('name')
     
-            # type is not present
-            if 'type' not in sequenceChild.attrib:
-                # type declared below the element
-                newTagID = "element" + str(nb_html_tags)
-                nb_html_tags += 1
-                request.session['nb_html_tags'] = str(nb_html_tags)
-                new_xml_xpath = form_element.xml_xpath[0:form_element.xml_xpath.rfind('[') + 1] + str(xml_element.nbOccurs) + ']'
-                new_form_element = FormElement(html_id=tagID, xml_element=xml_element, xml_xpath=new_xml_xpath, name=textCapitalized).save() 
-                form_data.elements[newTagID] = new_form_element.id
-                form_data.save()
-                if sequenceChild[0].tag == "{0}complexType".format(namespace):
-                    formString += "<li class='"+ element_tag +"' id='" + str(newTagID) + "'>" + "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>"  + textCapitalized
-                else: 
-                    formString += "<li class='"+ element_tag +"' id='" + str(newTagID) + "'>" + textCapitalized
-                
+            elementType = getElementType(sequenceChild, xmlDocTree, namespace, defaultPrefix)    
+            nb_html_tags = int(request.session['nb_html_tags'])                           
+            newTagID = "element" + str(nb_html_tags)
+            nb_html_tags += 1
+            request.session['nb_html_tags'] = str(nb_html_tags)   
+            new_xml_xpath = form_element.xml_xpath[0:form_element.xml_xpath.rfind('[') + 1] + str(xml_element.nbOccurs) + ']'         
+            new_form_element = FormElement(html_id=tagID, xml_element=xml_element, xml_xpath=new_xml_xpath, name=textCapitalized).save()
+            form_data.elements[newTagID] = new_form_element.id
+            form_data.save()
+            
+            # get the use from app info element
+            app_info_use = app_info['use'] if 'use' in app_info else ''
+            app_info_use = app_info_use if app_info_use is not None else ''
+            use = app_info_use
+            
+            # renders the name of the element
+            formString += "<li class='"+ element_tag + ' ' + use +"' id='" + str(newTagID) + "' tag='"+textCapitalized+"'>"
+            if CURATE_COLLAPSE:
+                if elementType is not None and elementType.tag == "{0}complexType".format(namespace): # the type is complex, can be collapsed
+                    formString += "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>"
+            
+            label = app_info['label'] if 'label' in app_info else textCapitalized
+            label = label if label is not None else ''
+            formString += label
+            
+            # if module is present, replace default input by module       
+            if has_module:
                 formString += "<span id='add"+ str(newTagID[7:]) +"' class=\"icon add\" onclick=\"changeHTMLForm('add',"+str(newTagID[7:])+");\"></span>"
-                formString += "<span id='remove"+ str(newTagID[7:]) +"' class=\"icon remove\" onclick=\"changeHTMLForm('remove',"+str(newTagID[7:])+");\"></span>"            
-                if sequenceChild[0].tag == "{0}complexType".format(namespace):
-                    formString += generateComplexType(request, sequenceChild[0], xmlDocTree, namespace, fullPath=new_xml_xpath)
-                elif sequenceChild[0].tag == "{0}simpleType".format(namespace):
-                    formString += generateSimpleType(request, sequenceChild[0], xmlDocTree, namespace, fullPath=new_xml_xpath)
-                formString += "</li>"
+                formString += "<span id='remove"+ str(newTagID[7:]) +"' class=\"icon remove\" onclick=\"changeHTMLForm('remove',"+str(newTagID[7:])+");\"></span>"   
+                formString += generateModule(request, sequenceChild, namespace, xml_element.xsd_xpath, new_xml_xpath)
+            else: # generate the type
+                if elementType is None: # no complex/simple type            
+                    defaultValue = ""
+                    if 'default' in sequenceChild.attrib:
+                        # if the default attribute is present                        
+                        defaultValue = sequenceChild.attrib['default']
                     
-            # type is a primitive XML type
-            elif sequenceChild.attrib.get('type') in common.getXSDTypes(defaultPrefix):
-                newTagID = "element" + str(nb_html_tags)
-                nb_html_tags += 1
-                request.session['nb_html_tags'] = str(nb_html_tags)
-                new_xml_xpath = form_element.xml_xpath[0:form_element.xml_xpath.rfind('[') + 1] + str(xml_element.nbOccurs) + ']'
-                new_form_element = FormElement(html_id=tagID, xml_element=xml_element, xml_xpath=new_xml_xpath, name=textCapitalized).save() 
-                form_data.elements[newTagID] = new_form_element.id
-                form_data.save()
-                defaultValue = ""
-                if 'default' in sequenceChild.attrib:
-                    defaultValue = sequenceChild.attrib['default']
-                formString += "<li class='"+ element_tag +"' id='" + str(newTagID) + "'>" + textCapitalized + " <input type='text' value='"+ defaultValue +"'/>"
-                formString += "<span id='add"+ str(newTagID[7:]) +"' class=\"icon add\" onclick=\"changeHTMLForm('add',"+str(newTagID[7:])+");\"></span>"
-                formString += "<span id='remove"+ str(newTagID[7:]) +"' class=\"icon remove\" onclick=\"changeHTMLForm('remove',"+str(newTagID[7:])+");\"></span>"         
-                formString += "</li>"
-            else:
-                # type is declared in the document
-                if sequenceChild.attrib.get('type') is not None:                  
-                    newTagID = "element" + str(nb_html_tags)
-                    nb_html_tags += 1
-                    request.session['nb_html_tags'] = str(nb_html_tags)
-                    new_xml_xpath = form_element.xml_xpath[0:form_element.xml_xpath.rfind('[') + 1] + str(xml_element.nbOccurs) + ']'
-                    new_form_element = FormElement(html_id=tagID, xml_element=xml_element, xml_xpath=new_xml_xpath, name=textCapitalized).save() 
-                    form_data.elements[newTagID] = new_form_element.id
-                    form_data.save()
-                    # TODO: manage namespaces
-                    # type of the element is complex        
-                    typeName = sequenceChild.attrib.get('type')
-                    if ':' in typeName:
-                        typeName = typeName.split(":")[1]
+                    placeholder = 'placeholder="'+app_info['placeholder']+ '"' if 'placeholder' in app_info else ''
+                    placeholder = placeholder if placeholder is not None else ''
                     
-                    xpath = "./{0}complexType[@name='{1}']".format(namespace,typeName)
-                    elementType = xmlDocTree.find(xpath)
-                    if elementType is None:
-                        # type of the element is simple
-                        xpath = "./{0}simpleType[@name='{1}']".format(namespace,typeName)
-                        elementType = xmlDocTree.find(xpath)
+                    tooltip = 'title="'+app_info['tooltip']+ '"' if 'tooltip' in app_info else ''
+                    tooltip = tooltip if tooltip is not None else ''
                     
-                                        
-                    if elementType.tag == "{0}complexType".format(namespace):
-                        formString += "<li class='"+ element_tag +"' id='" + str(newTagID) + "'>" + "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>"  + textCapitalized
-                    else: 
-                        formString += "<li class='"+ element_tag +"' id='" + str(newTagID) + "'>" + textCapitalized
+                    formString += " <input type='text' value='"+ django.utils.html.escape(defaultValue) +"'" + placeholder + tooltip +"/>" 
                     
                     formString += "<span id='add"+ str(newTagID[7:]) +"' class=\"icon add\" onclick=\"changeHTMLForm('add',"+str(newTagID[7:])+");\"></span>"
-                    formString += "<span id='remove"+ str(newTagID[7:]) +"' class=\"icon remove\" onclick=\"changeHTMLForm('remove',"+str(newTagID[7:])+");\"></span>"           
+                    formString += "<span id='remove"+ str(newTagID[7:]) +"' class=\"icon remove\" onclick=\"changeHTMLForm('remove',"+str(newTagID[7:])+");\"></span>"         
+                else: # complex/simple type 
+                    formString += "<span id='add"+ str(newTagID[7:]) +"' class=\"icon add\" onclick=\"changeHTMLForm('add',"+str(newTagID[7:])+");\"></span>"
+                    formString += "<span id='remove"+ str(newTagID[7:]) +"' class=\"icon remove\" onclick=\"changeHTMLForm('remove',"+str(newTagID[7:])+");\"></span>"         
+                    if elementType.tag == "{0}complexType".format(namespace):
+                        formString += generateComplexType(request, elementType, xmlDocTree, namespace, fullPath=new_xml_xpath)
+                    elif elementType.tag == "{0}simpleType".format(namespace):
+                        formString += generateSimpleType(request, elementType, xmlDocTree, namespace, fullPath=new_xml_xpath)
                     
-                    if elementType is not None:
-                        if elementType.tag == "{0}complexType".format(namespace):
-                            formString += generateComplexType(request, elementType, xmlDocTree, namespace, fullPath=new_xml_xpath)
-                        elif elementType.tag == "{0}simpleType".format(namespace):
-                            formString += generateSimpleType(request, elementType, xmlDocTree, namespace, fullPath=new_xml_xpath)                    
-                    formString += "</li>"
+            formString += "</li>"    
+                    
+                    
         elif element_tag == "sequence":
             newTagID = "element" + str(nb_html_tags)
             nb_html_tags += 1
@@ -1909,7 +1948,9 @@ def duplicate(request):
             text = "Sequence"
             
             if len(list(sequenceChild)) > 0 :
-                formString += "<li class='sequence' id='" + str(newTagID) + "'>" + "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>"  + text
+                formString += "<li class='sequence' id='" + str(newTagID) + "'>" 
+                formString += "<span class='collapse' style='cursor:pointer;' onclick='showhideCurate(event);'></span>" if CURATE_COLLAPSE else ""
+                formString += text
             else:
                 formString += "<li class='sequence' id='" + str(newTagID) + "'>" + text
                 
@@ -2067,7 +2108,7 @@ def generateForm(request):
             # set the parser
             etree.set_default_parser(parser=clean_parser)
             # load the XML tree from the text
-            edit_data_tree = etree.XML(str(form_data.xml_data))
+            edit_data_tree = etree.XML(str(form_data.xml_data.encode('utf-8')))
         else: #no data found, not editing
             request.session['curate_edit'] = False
             
@@ -2281,7 +2322,7 @@ def load_xml(request):
     
     xmlString = request.session['xmlString']
     
-    xsltPath = os.path.join(settings.SITE_ROOT, 'static/resources/xsl/xml2html.xsl')
+    xsltPath = os.path.join(settings.SITE_ROOT, 'static', 'resources', 'xsl', 'xml2html.xsl')
     xslt = etree.parse(xsltPath)
     transform = etree.XSLT(xslt)
     xmlTree = ""
@@ -2328,3 +2369,37 @@ def delete_form(request):
             return HttpResponse({},status=400)
     return HttpResponse({})
 
+
+################################################################################
+#
+# Function Name: cancel_form(request)
+# Inputs:        request -
+# Outputs:       
+# Exceptions:    None
+# Description:   Cancel a form being entered
+#
+################################################################################
+def cancel_form(request):
+    try:
+        form_data_id = request.session['curateFormData']
+        form_data = FormData.objects().get(pk=form_data_id)
+        # cascade delete references
+        for form_element_id in form_data.elements.values():
+            try:
+                form_element = FormElement.objects().get(pk=form_element_id)
+                if form_element.xml_element is not None:
+                    try:
+                        xml_element = XMLElement.objects().get(pk=str(form_element.xml_element.id))
+                        xml_element.delete()
+                    except:
+                        # raise an exception when element not found
+                        pass
+                form_element.delete()
+            except:
+                # raise an exception when element not found
+                pass
+        form_data.delete()
+        messages.add_message(request, messages.INFO, 'Form deleted with success.')
+        return HttpResponse({},status=204)
+    except Exception, e:
+        return HttpResponse({},status=400)

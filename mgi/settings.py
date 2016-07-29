@@ -75,6 +75,10 @@ SERVER_EMAIL = 'noreply@curator.org'
 ADMINS = [('admin', 'admin@curator.org'),]
 MANAGERS = [('manager', 'moderator@curator.org'),]
 EMAIL_SUBJECT_PREFIX = "[CURATOR] "
+#EMAIL_HOST = ""
+#EMAIL_HOST_USER = ""
+#EMAIL_HOST_PASSWORD = ""
+#EMAIL_PORT= 25
 
 #Password Policy
 # Determines wether to use the password history.

@@ -14,9 +14,6 @@
 #
 ################################################################################
 
-
-# Create your views here.
-
 from django.http import HttpResponse
 from django.template import RequestContext, loader
 from django.shortcuts import redirect
@@ -25,6 +22,7 @@ from cStringIO import StringIO
 from mgi.models import Template, TemplateVersion, XML2Download, Type, TypeVersion, Bucket
 from admin_mdcs.models import permission_required
 import mgi.rights as RIGHTS
+
 
 ################################################################################
 #
@@ -45,8 +43,9 @@ def index(request):
     currentTemplates = dict()
     for tpl_version in currentTemplateVersions:
         tpl = Template.objects.get(pk=tpl_version)
-        templateVersions = TemplateVersion.objects.get(pk=tpl.templateVersion)
-        currentTemplates[tpl] = templateVersions.isDeleted
+        if tpl.user is None:
+            templateVersions = TemplateVersion.objects.get(pk=tpl.templateVersion)
+            currentTemplates[tpl] = templateVersions.isDeleted
 
     context = RequestContext(request, {
        'templates':currentTemplates,

@@ -18,20 +18,19 @@ from django.http import HttpResponse
 from django.template import RequestContext, loader, Context
 from django.shortcuts import redirect
 from django.conf import settings
-from mgi.models import TemplateVersion, Instance, SavedQuery, XMLdata, ExporterXslt
+from mgi.models import Instance, SavedQuery, XMLdata, ExporterXslt
 import mgi.rights as RIGHTS
 from cStringIO import StringIO
-from django.core.servers.basehttp import FileWrapper
 import zipfile
 import lxml.etree as etree
 import os
-import xmltodict
 import json
 from explore.forms import *
 from exporter import get_exporter
 from io import BytesIO
 from exporter.builtin.models import XSLTExporter
 from admin_mdcs.models import permission_required
+
 
 ################################################################################
 #
@@ -52,8 +51,9 @@ def index(request):
     currentTemplates = dict()
     for tpl_version in currentTemplateVersions:
         tpl = Template.objects.get(pk=tpl_version)
-        templateVersions = TemplateVersion.objects.get(pk=tpl.templateVersion)
-        currentTemplates[tpl] = templateVersions.isDeleted
+        if tpl.user is None:
+            templateVersions = TemplateVersion.objects.get(pk=tpl.templateVersion)
+            currentTemplates[tpl] = templateVersions.isDeleted
 
     template = loader.get_template('explore/explore.html')
     context = RequestContext(request, {
@@ -62,6 +62,7 @@ def index(request):
     })
 
     return HttpResponse(template.render(context))
+
 
 ################################################################################
 #
@@ -82,6 +83,7 @@ def index_keyword(request):
     })
     return HttpResponse(template.render(context))
 
+
 ################################################################################
 #
 # Function Name: explore_select_template(request)
@@ -98,6 +100,7 @@ def explore_select_template(request):
         '': '',
     })
     return HttpResponse(template.render(context))
+
 
 ################################################################################
 #
@@ -117,6 +120,7 @@ def explore_customize_template(request):
         return redirect('/explore/select-template')
     else:
         return HttpResponse(template.render(context))
+
 
 ################################################################################
 #
@@ -178,6 +182,7 @@ def explore_results(request):
     else:
         return HttpResponse(template.render(context))
 
+
 ################################################################################
 #
 # Function Name: explore_all_results(request)
@@ -209,6 +214,7 @@ def explore_all_results(request):
         return redirect('/explore/select-template')
     else:
         return HttpResponse(template.render(context))
+
 
 ################################################################################
 #
@@ -253,6 +259,7 @@ def explore_all_versions_results(request):
     else:
         return HttpResponse(template.render(context))
 
+
 ################################################################################
 #
 # Function Name: explore_detail_result
@@ -285,9 +292,10 @@ def explore_detail_result(request) :
 @permission_required(content_type=RIGHTS.explore_content_type, permission=RIGHTS.explore_access, login_url='/login')
 def explore_detail_result_keyword(request) :
     template = loader.get_template('explore/explore_detail_results_keyword.html')
-    context =  explore_detail_result_process(request)
+    context = explore_detail_result_process(request)
 
     return HttpResponse(template.render(context))
+
 
 ################################################################################
 #
@@ -299,7 +307,7 @@ def explore_detail_result_keyword(request) :
 #
 ################################################################################
 @permission_required(content_type=RIGHTS.explore_content_type, permission=RIGHTS.explore_access, login_url='/login')
-def explore_detail_result_process(request) :
+def explore_detail_result_process(request):
     result_id = request.GET['id']
     xmlString = XMLdata.get(result_id)
     schemaId = xmlString['schema']
@@ -307,7 +315,7 @@ def explore_detail_result_process(request) :
         title = request.GET['title']
     else:
         title = xmlString['title']
-    xmlString = xmltodict.unparse(xmlString['content']).encode('utf-8')
+    xmlString = XMLdata.unparse(xmlString['content']).encode('utf-8')
     xsltPath = os.path.join(settings.SITE_ROOT, 'static', 'resources', 'xsl', 'xml2html.xsl')
     xslt = etree.parse(xsltPath)
     transform = etree.XSLT(xslt)
@@ -334,6 +342,7 @@ def explore_detail_result_process(request) :
     })
 
     return context
+
 
 ################################################################################
 #
@@ -406,13 +415,14 @@ def start_export(request):
 
         # Get all schemaId from the listId
         listSchemas = XMLdata.getByIDsAndDistinctBy(listId, "schema")
-            # XMLdata.objects(pk__in=listId).distinct(field="schema")
 
         export_form = ExportForm(listSchemas)
 
         upload_xslt_Form = UploadXSLTForm(listSchemas)
         template = loader.get_template('explore/export_start.html')
-        context = Context({'export_form':export_form, 'upload_xslt_Form':upload_xslt_Form, 'nb_elts_exp': len(export_form.EXPORT_OPTIONS), 'nb_elts_xslt' : len(upload_xslt_Form.EXPORT_OPTIONS)})
+        context = Context({'export_form': export_form,
+                           'upload_xslt_Form': upload_xslt_Form,
+                           'nb_elts_exp': len(export_form.EXPORT_OPTIONS),
+                           'nb_elts_xslt': len(upload_xslt_Form.EXPORT_OPTIONS)})
 
         return HttpResponse(json.dumps({'template': template.render(context)}), content_type='application/javascript')
-

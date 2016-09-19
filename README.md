@@ -10,12 +10,11 @@ To install and run the MDCS on your machine:
 - Pick the instruction notes for your operating system, inside the docs folder,
 - Follow the installation instructions,
 - Make sure that the python packages and software that you are installing, match the versions listed in the document Required Python Packages and Required Software,
-- Recommended Internet Browser: Mozilla Firefox.
 
 <h3>Deployment</h3>
 To deploy the MDCS, please refer to the following documents:
-- https://docs.djangoproject.com/en/1.7/howto/deployment/
-- https://docs.djangoproject.com/en/1.7/howto/deployment/checklist/
+- https://docs.djangoproject.com/en/1.8/howto/deployment/
+- https://docs.djangoproject.com/en/1.8/howto/deployment/checklist/
 
 <h3>Disclaimer</h3>
 
@@ -36,7 +35,7 @@ For more convenience, the file mod.demo.diffusion.xsd provide a version of the D
 A developer guide for the module system is available on request.
 
 <h4>Data Editing</h4>
-Data editing and data deleting of data already curated are only available for the superuser in the current version. All users can upload partial or complete data to edit and curate them.
+Data editing and data deleting of data already curated are available in the current version. All users can upload partial or complete data to edit and curate them.
 
 <h4>Installers</h4>
 Automatic installers for Windows and Mac OS are available on request. 

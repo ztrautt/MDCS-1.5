@@ -50,7 +50,9 @@ python setup.py install
 
 #### For lxml
 If you get the error “clang error: linker command failed”, then run the following command instead (See http://lxml.de/installation.html):
+```
 STATIC_DEPS=true pip install lxml==<version>
+```
 
 ## Run the software for the first time
 - Run mongodb (if not already running):

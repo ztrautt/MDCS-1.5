@@ -337,7 +337,7 @@ class OAIProvider(TemplateView):
                 raise cannotDisseminateFormat(self.metadataPrefix)
 
             #Transform XML data
-            dataToTransform = [{'title': data['_id'], 'content': self.cleanXML(XMLdata.unparse(data['content']))}]
+            dataToTransform = [{'title': data['title'], 'content': self.cleanXML(data['xml_file'])}]
             if hasToBeTransformed:
                 dataXML = self.getXMLTranformXSLT(dataToTransform, xslt)
             else:
@@ -408,25 +408,25 @@ class OAIProvider(TemplateView):
                 #IF no records, go to the next template
                 if len(data) == 0:
                     continue
-                dataToTransform = [{'title': x['_id'], 'content': self.cleanXML(XMLdata.unparse(x['content']))} for x in data]
-                if myMetadataFormat.isTemplate:
-                    #No transformation needed
-                    dataXML = dataToTransform
-                else:
-                    #Get the XSLT file
+
+                if not myMetadataFormat.isTemplate:
                     xslt = objTempMfXslt(template=template).get().xslt
-                    #Transform all XML data (1 call)
-                    dataXML = self.getXMLTranformXSLT(dataToTransform, xslt)
+
                 #Add each record
                 for elt in data:
+                    dataToTransform = [{'title': elt['title'], 'content': self.cleanXML(elt['xml_file'])}]
+
+                    dataXML = dataToTransform if myMetadataFormat.isTemplate \
+                        else self.getXMLTranformXSLT(dataToTransform, xslt)
+
                     identifier = '%s:%s:id/%s' % (settings.OAI_SCHEME, settings.OAI_REPO_IDENTIFIER,
                           elt['_id'])
-                    xmlStr = filter(lambda xml: xml['title'] == elt['_id'], dataXML)[0]
+
                     record_info = {
                         'identifier': identifier,
                         'last_modified': self.get_last_modified_date(elt),
                         'sets': sets,
-                        'XML': xmlStr['content'],
+                        'XML': dataXML[0]['content'],
                         'deleted': elt.get('status', '') == Status.DELETED
                     }
                     items.append(record_info)

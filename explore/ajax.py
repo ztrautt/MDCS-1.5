@@ -460,10 +460,11 @@ def get_results_by_instance_keyword(request):
         for instanceResult in instanceResults:
             if not onlySuggestions:
                 custom_xslt = False
+                xml_content = instanceResult['xml_file']
                 results.append({'title': instanceResult['title'],
-                                'content': XMLdata.unparse(instanceResult['content']),
+                                'content': xml_content,
                                 'id': str(instanceResult['_id'])})
-                dom = etree.XML(str(XMLdata.unparse(instanceResult['content']).encode('utf-8')))
+                dom = etree.XML(xml_content.encode('utf-8'))
                 #Check if a custom list result XSLT has to be used
                 try:
                     schema = Template.objects.get(pk=instanceResult['schema'])
@@ -491,7 +492,8 @@ def get_results_by_instance_keyword(request):
                 wordList = re.sub("[^\w]", " ",  keyword).split()
                 wordList = [x + "|" + x + "\w+" for x in wordList]
                 wordList = '|'.join(wordList)
-                listWholeKeywords = re.findall("\\b(" + wordList + ")\\b", XMLdata.unparse(instanceResult['content']).encode('utf-8'), flags=re.IGNORECASE)
+                xml_content = instanceResult['xml_file']
+                listWholeKeywords = re.findall("\\b(" + wordList + ")\\b", xml_content.encode('utf-8'), flags=re.IGNORECASE)
                 labels = list(set(listWholeKeywords))
 
                 for label in labels:
@@ -526,6 +528,11 @@ def get_results_by_instance(request):
     instances = request.session['instancesExplore']
     resultString = ""
     hasResult = False
+
+    selected_template_id = request.session['exploreCurrentTemplateID']
+    template = Template.objects().get(pk=selected_template_id)
+    template_hash = template.hash
+
     for i in range(int(num_instance)):
         results = []
         instance = json.loads(instances[int(i)])
@@ -535,8 +542,8 @@ def get_results_by_instance(request):
             query = copy.deepcopy(request.session['queryExplore'])
             manageRegexBeforeExe(query)
             
-            selected_template_id = request.session['exploreCurrentTemplateID']
-            template = Template.objects().get(pk=selected_template_id)
+            # selected_template_id = request.session['exploreCurrentTemplateID']
+            # template = Template.objects().get(pk=selected_template_id)
             
             # template is user defined
             if template.user is not None:
@@ -562,11 +569,11 @@ def get_results_by_instance(request):
                 transform = etree.XSLT(xslt)
                 for instanceResult in instanceResults:
                     custom_xslt = False
+                    xml_content = instanceResult['xml_file']
                     results.append({'title': instanceResult['title'],
-                                    'content': XMLdata.unparse(instanceResult['content']),
+                                    'content': xml_content,
                                     'id': str(instanceResult['_id'])})
-                    #dom = etree.fromstring(str(xmltodict.unparse(instanceResult['content']).replace('<?xml version="1.0" encoding="utf-8"?>\n',"")))
-                    dom = etree.XML(str(XMLdata.unparse(instanceResult['content']).encode('utf-8')))
+                    dom = etree.XML(str(xml_content.encode('utf-8')))
                     #Check if a custom list result XSLT has to be used
                     try:
                         schema = Template.objects.get(pk=instanceResult['schema'])
@@ -583,25 +590,28 @@ def get_results_by_instance(request):
                         custom_xslt = False
 
                     modification = request.user.is_staff or (str(instanceResult['iduser']) == str(request.user.id))
-                    context = RequestContext(request, {'id':str(instanceResult['_id']),
-                                               'xml': str(newdom),
-                                               'title': instanceResult['title'],
-                                               'custom_xslt': custom_xslt,
-                                               'template_name': schema.title,
-                                                'modification': modification})
+                    context = RequestContext(request, {'id': str(instanceResult['_id']),
+                                                       'xml': str(newdom),
+                                                       'title': instanceResult['title'],
+                                                       'custom_xslt': custom_xslt,
+                                                       'template_name': schema.title,
+                                                       'modification': modification})
 
-                    resultString+= template.render(context)
+                    resultString += template.render(context)
 
                 resultString += "<br/>"
             else:
                 resultString += "<span style='font-style:italic; color:red;'> No Results found... </span><br/><br/>"
 
         else:
-            url = instance['protocol'] + "://" + instance['address'] + ":" + str(instance['port']) + "/rest/explore/query-by-example"
+            url_remote = instance['protocol'] + "://" + instance['address'] + ":" + str(instance['port'])
+            url = url_remote + "/rest/explore/query-by-example"
+            instance_name = instance['name']
             query = copy.deepcopy(request.session['queryExplore'])
             data = {"query": json.dumps(query)}
+            param = {'template_hash': template_hash}
             headers = {'Authorization': 'Bearer ' + instance['access_token']}
-            r = requests.post(url, data=data, headers=headers)   
+            r = requests.post(url, data=data, params=param, headers=headers)
             result = r.text
             instanceResults = json.loads(result,object_pairs_hook=OrderedDict)
             if len(instanceResults) > 0:
@@ -635,6 +645,9 @@ def get_results_by_instance(request):
                     context = RequestContext(request, {'id': str(instanceResult['_id']),
                                                        'xml': str(newdom),
                                                        'title': instanceResult['title'],
+                                                       'template_name': instanceResult['schema_title'],
+                                                       'instance_name': instance_name,
+                                                       'is_remote': 'True',
                                                        'custom_xslt': custom_xslt,
                                                        'modification': modification})
 

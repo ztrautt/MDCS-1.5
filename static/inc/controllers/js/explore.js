@@ -1273,23 +1273,29 @@ clearExport = function() {
 * Export files
 */
 exportRes = function() {
-
 	console.log('BEGIN [downloadSelectedResults]');
     clearExport();
     var existOne = false;
     // Need to Set input values explicitiy before sending innerHTML for save
     var elems = document.getElementById("results").getElementsByTagName("input")
     var listId = [];
+    var remote_instance_selected = false;
+    var url_list = $("a.url");
     for(var i = 0; i < elems.length; i++) {
     	if(elems[i].checked == true)
     	{
     	    existOne = true;
-    	    listId.push(elems[i].getAttribute("result_id"));
+    	    var result_id = elems[i].getAttribute("result_id");
+    	    listId.push(result_id);
+    	    var url = url_list[i].getAttribute("href");
+    	    if(url.indexOf("remote") >= 0){
+    	        remote_instance_selected = true;
+            }
     	}
     }
 
     if(existOne > 0){
-        displayExportSelectedDialog(listId);
+        displayExportSelectedDialog(listId, remote_instance_selected);
     }
     else
     {
@@ -1304,16 +1310,16 @@ exportRes = function() {
 /**
  * Show a dialog when a result is selected
  */
-displayExportSelectedDialog = function(listId)
+displayExportSelectedDialog = function(listId, remote_instance_selected)
 {
-    exist = load_start_form(listId);
+    exist = load_start_form(listId, remote_instance_selected);
     $(function() {
         $( "#dialog-message" ).dialog({
           modal: true,
           buttons:
               [
                {
-                   text: "Export",
+                   text: "Begin Download",
                    click: function() {
 
                             if(validateExport())
@@ -1329,13 +1335,14 @@ displayExportSelectedDialog = function(listId)
 }
 
 
-load_start_form = function(listId){
+load_start_form = function(listId, remote_instance_selected){
 	$.ajax({
         url : "/explore/start_export",
         type : "GET",
         dataType: "json",
         data : {
             listId : listId,
+            remote_instance_selected: remote_instance_selected
         },
         success: function(data){
             $("#form_start_errors").html("");

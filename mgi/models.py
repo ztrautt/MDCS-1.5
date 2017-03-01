@@ -390,10 +390,18 @@ def custom_parse_numbers(num_str):
     return str(num_str)
 
 
+def unparse(json_dict):
+    json_dump_string = json.dumps(json_dict)
+    preprocessed_dict = json.loads(json_dump_string,
+                           parse_float=custom_parse_numbers,
+                           parse_int=custom_parse_numbers,
+                           object_pairs_hook=OrderedDict)
+    return xmltodict.unparse(preprocessed_dict)
+
 class XMLdata(object):
     """Wrapper to manage JSON Documents, like mongoengine would have manage them (but with ordered data)"""
 
-    def __init__(self, schemaID=None, xml=None, json=None, title="", iduser=None, ispublished=False,
+    def __init__(self, schemaID=None, xml=None, title="", iduser=None, ispublished=False,
                  publicationdate=None, oai_datestamp=None):
         """                                                                                                                                                                                                                   
             initialize the object                                                                                                                                                                                             
@@ -413,33 +421,21 @@ class XMLdata(object):
         self.content['schema'] = schemaID
         # insert the title                                                                                                                                                                                                    
         self.content['title'] = title
-        if (json is not None):
-            # insert the json content after                                                                                                                                                                                       
-            self.content['content'] = json
-        else:
-            # insert the json content after                                                                                                                                                                                       
-            self.content['content'] = xmltodict.parse(xml, postprocessor=postprocessor)
-        #id user
-        if (iduser is not None):
+        self.content['content'] = xmltodict.parse(xml, postprocessor=postprocessor)
+        self.content['xml_file'] = xml
+
+        # id user
+        if iduser is not None:
             self.content['iduser'] = iduser
 
         self.content['ispublished'] = ispublished
-        if (publicationdate is not None):
+        if publicationdate is not None:
             self.content['publicationdate'] = publicationdate
 
         if oai_datestamp is not None:
             self.content['oai_datestamp'] = oai_datestamp
 
         self.content['status'] = Status.ACTIVE
-
-    @staticmethod
-    def unparse(json_dict):
-        json_dump_string = json.dumps(json_dict)
-        preprocessed_dict = json.loads(json_dump_string,
-                               parse_float=custom_parse_numbers,
-                               parse_int=custom_parse_numbers,
-                               object_pairs_hook=OrderedDict)
-        return xmltodict.unparse(preprocessed_dict)
 
     @staticmethod
     def initIndexes():
@@ -620,30 +616,6 @@ class XMLdata(object):
         xmldata.update({'_id': ObjectId(postID)}, {"$set": {'status': Status.DELETED, 'oai_datestamp': now}},
                        upsert=False)
 
-    # TODO: to be tested
-    @staticmethod
-    def update(postID, json=None, xml=None):
-        """
-            Update the object with the given id
-        """
-        # create a connection
-        client = MongoClient(MONGODB_URI)
-        # connect to the db 'mgi'
-        db = client[MGI_DB]
-        # get the xmldata collection
-        xmldata = db['xmldata']
-
-        data = None
-        if (json is not None):
-            data = json
-            if '_id' in json:
-                del json['_id']
-        else:
-            data = xmltodict.parse(xml, postprocessor=postprocessor)
-
-        if data is not None:
-            xmldata.update({'_id': ObjectId(postID)}, {"$set": data}, upsert=False)
-
     @staticmethod
     def update_content(postID, content=None, title=None):
         """
@@ -657,7 +629,10 @@ class XMLdata(object):
         xmldata = db['xmldata']
 
         json_content = xmltodict.parse(content, postprocessor=postprocessor)
-        json = {'content': json_content, 'title': title, 'lastmodificationdate': datetime.datetime.now()}
+        json = {'content': json_content,
+                'xml_file': content,
+                'title': title,
+                'lastmodificationdate': datetime.datetime.now()}
                     
         xmldata.update({'_id': ObjectId(postID)}, {"$set": json}, upsert=False)
 
@@ -719,9 +694,9 @@ class XMLdata(object):
         wordList = ' '.join(wordList)
     
         if len(wordList) > 0:
-            full_text_query = {'$text': {'$search': wordList}, 'schema' : {'$in': templatesID}, }
+            full_text_query = {'$text': {'$search': wordList}, 'schema': {'$in': templatesID}, }
         else:
-            full_text_query = {'schema' : {'$in': templatesID} } 
+            full_text_query = {'schema': {'$in': templatesID}}
         
         if len(refinements.keys()) > 0:
             full_text_query.update(refinements)

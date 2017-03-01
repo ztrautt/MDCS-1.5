@@ -44,13 +44,14 @@ class JSONExporter(Exporter):
                 xml = result['content']
                 if xml != "":
                     # We remove the extension
-                    result['title'] = os.path.splitext(result['title'])[0]
+                    title = self.get_title_document(result['title'], xml)
                     try:
                         # Parse the XML
                         contentEncoded = xmltodict.parse(xml, postprocessor=postprocessor)
                         # Transform to JSON
                         transformation = json.dumps(contentEncoded, indent=4)
-                        returnTransformation.append({'title': result['title'], 'content': transformation})
+                        returnTransformation.append({'title': title,
+                                                     'content': transformation})
                     except etree.ParseError as e:
                         raise
                     except:

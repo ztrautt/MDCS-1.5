@@ -140,7 +140,7 @@ class HtmlRenderer(BaseRenderer):
 
         return self._load_template('input', data)
 
-    def _render_select(self, select_id, select_class, option_list):
+    def _render_select(self, select, select_class, option_list):
         # if type(select_id) not in [str, unicode, NoneType]:
         #     raise TypeError('First param (select_id) should be a str or None (' + str(type(select_id)) + ' given)')
         #
@@ -164,7 +164,7 @@ class HtmlRenderer(BaseRenderer):
         #         raise TypeError('Malformed param (option_list): item[2] should be a bool')
 
         data = {
-            'select_id': select_id,
+            'select_id': select.pk,
             'select_class': select_class,
             'option_list': option_list
         }
@@ -338,6 +338,7 @@ class DefaultRenderer(object):
         placeholder = ''
         tooltip = ''
         use = ''
+        fixed = ''
 
         if 'placeholder' in element.options:
             placeholder = element.options['placeholder']
@@ -348,19 +349,27 @@ class DefaultRenderer(object):
         if 'use' in element.options:
             use = element.options['use']
 
+        if 'fixed' in element.options:
+            fixed = element.options['fixed']
+
         data = {
             'id': element.pk,
             'value': element.value,
             'placeholder': placeholder,
             'tooltip': tooltip,
             'use': use,
+            'fixed': fixed,
         }
 
         return self._load_template('input', data)
 
-    def _render_select(self, select_id, select_class, option_list):
-        if type(select_id) not in [str, unicode, NoneType]:
-            raise TypeError('First param (select_id) should be a str or None (' + str(type(select_id)) + ' given)')
+    def _render_select(self, select, select_class, option_list):
+        if select is None:
+            select_id = ''
+            fixed = False
+        else:
+            select_id = select.pk
+            fixed = select.options['is_fixed'] if 'is_fixed' in select.options else False
 
         if not isinstance(option_list, types.ListType):
             raise TypeError('First param (option_list) should be a list (' + str(type(option_list)) + ' given)')
@@ -384,7 +393,8 @@ class DefaultRenderer(object):
         data = {
             'select_id': select_id,
             'select_class': select_class,
-            'option_list': option_list
+            'option_list': option_list,
+            'fixed': fixed,
         }
 
         return self._load_template('select', data)

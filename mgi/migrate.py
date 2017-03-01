@@ -8,6 +8,9 @@ from bson.objectid import ObjectId
 import argparse
 import platform
 import getpass
+import json
+import xmltodict
+from collections import OrderedDict
 
 # PROCEDURE:
 # - stop mongogod, stop runserver
@@ -16,6 +19,19 @@ import getpass
 # - run mongod
 # - run migration
 # - runserver
+
+
+def custom_parse_numbers(num_str):
+    return str(num_str)
+
+
+def unparse(json_dict):
+    json_dump_string = json.dumps(json_dict)
+    preprocessed_dict = json.loads(json_dump_string,
+                           parse_float=custom_parse_numbers,
+                           parse_int=custom_parse_numbers,
+                           object_pairs_hook=OrderedDict)
+    return xmltodict.unparse(preprocessed_dict)
 
 
 class Migration:
@@ -244,90 +260,7 @@ class Migration:
         try:
             if not self._warn_user('The changes on the database are about to be applied.'):
                 self._error()
-
-            # GET COLLECTIONS NEEDED FOR MIGRATION
-            meta_schema_col = db['meta_schema']
-            template_col = db['template']
-            type_col = db['type']
-            form_data_col = db['form_data']
-            xml_data_col = db['xmldata']
-
-            # METASCHEMA COLLECTION REMOVED:
-            # NEED TO UPDATE THE CONTENT OF TEMPLATES/TYPES
-            print "Updating templates/types with meta_schema collection..."
-
-            # find all meta_schema of the collection
-            cursor = meta_schema_col.find()
-
-            # Browse meta_schema collection
-            for result in cursor:
-                # get the template/type id
-                schema_id = result['schemaId']
-                # get the content stored in meta_schema
-                api_content = result['api_content']
-                # create a payload to update the template/type
-                payload = {'content': api_content}
-
-                # get the template/type to update
-                to_update = template_col.find_one({'_id': ObjectId(schema_id)})
-                template_col.update({'_id': ObjectId(schema_id)}, {"$set": payload}, upsert=False)
-                if to_update is None:
-                    to_update = type_col.find_one({'_id': ObjectId(schema_id)})
-                    if to_update is None:
-                        # restore dump
-                        self._restore_dump(backup_dir_path=backup_dir_path,
-                                           mongo_admin_user=mongo_admin_user,
-                                           mongo_admin_password=mongo_admin_password,
-                                           mongo_path=mongo_path)
-                        self._error('Trying to update the content of ' + schema_id + ' but it cannot be found')
-                    else:
-                        type_col.update({'_id': ObjectId(schema_id)}, {"$set": payload}, upsert=False)
-
-            # XMLDATA CHANGES:
-            print "Updating xml_data..."
-            print "Adding status property to all records (Active by default)..."
-            xml_data_col.update({}, {"$set": {"status": 'active'}}, upsert=False, multi=True)
-            print "Set ispublished property to true for all records..."
-            xml_data_col.update({}, {"$set": {"ispublished": True}}, upsert=False, multi=True)
-            print "Adding lastmodificationdate/oai_datestamp to records..."
-            # find all meta_schema of the collection
-            cursor = xml_data_col.find()
-            # Browse xml_data collection
-            for result in cursor:
-                # xml data has a publication date
-                if 'publicationdate' in result:
-                    publication_date = result['publicationdate']
-                    # set last modification date and oai_datestamp to publication date
-                    payload = {'lastmodificationdate': publication_date, 'oai_datestamp': publication_date}
-                    xml_data_col.update({'_id': result['_id']}, {"$set": payload}, upsert=False)
-                else:
-                    # set last modification date to datetime.MIN
-                    generation_time = result['_id'].generation_time
-                    payload = {'lastmodificationdate': generation_time,
-                               'publicationdate': generation_time,
-                               'oai_datestamp': generation_time}
-                    xml_data_col.update({'_id': result['_id']}, {"$set": payload}, upsert=False)
-
-            # FORM DATA UNIQUE NAMES
-            self._resolve_duplicate_names(form_data_col)
-
-            # BLOB Metadata
-            self._update_blob_metadata(db)
-
-            # CLEAN THE DATABASE
-            print "*** CLEAN THE DATABASE ***"
-            # remove elements from Form_data (not used in 1.4)
-            print "Removing elements from form_data collection..."
-            form_data_col.update({}, {"$unset": {"elements": 1}}, multi=True)
-            # drop form_element collection (not used in 1.4)
-            print "Dropping form_element collection..."
-            db.drop_collection('form_element')
-            # drop xml_element collection (not used in 1.4)
-            print "Dropping xml_element collection..."
-            db.drop_collection('x_m_l_element')
-            # drop meta_schema collection (not used in 1.4)
-            print "Dropping meta_schema collection..."
-            db.drop_collection('meta_schema')
+            self.migrate_1_4_to_1_5(db)
         except Exception, e:
             self._restore_dump(backup_dir_path=backup_dir_path,
                                mongo_admin_user=mongo_admin_user,
@@ -339,6 +272,136 @@ class Migration:
         print "You can now restart the server. " \
               "Do not delete any of the backup files before making sure everything is working fine."
         print "*** MIGRATION COMPLETE ***"
+
+    def migrate_1_3_to_1_4(self, db, backup_dir_path, mongo_admin_user, mongo_admin_password, mongo_path, warnings=True,
+                           backup=True):
+        """APPLIES CHANGES FROM 1.3 TO 1.4
+
+        :param db:
+        :param mongo_admin_user:
+        :param mongo_admin_password:
+        :param mongo_path:
+        :param warnings:
+        :param backup:
+        :return:
+        """
+        print "STARTING MIGRATION FROM 1.3 to 1.4"
+        # GET COLLECTIONS NEEDED FOR MIGRATION
+        meta_schema_col = db['meta_schema']
+        template_col = db['template']
+        type_col = db['type']
+        form_data_col = db['form_data']
+        xml_data_col = db['xmldata']
+
+        # METASCHEMA COLLECTION REMOVED:
+        # NEED TO UPDATE THE CONTENT OF TEMPLATES/TYPES
+        print "Updating templates/types with meta_schema collection..."
+
+        # find all meta_schema of the collection
+        cursor = meta_schema_col.find()
+
+        # Browse meta_schema collection
+        for result in cursor:
+            # get the template/type id
+            schema_id = result['schemaId']
+            # get the content stored in meta_schema
+            api_content = result['api_content']
+            # create a payload to update the template/type
+            payload = {'content': api_content}
+
+            # get the template/type to update
+            to_update = template_col.find_one({'_id': ObjectId(schema_id)})
+            template_col.update({'_id': ObjectId(schema_id)}, {"$set": payload}, upsert=False)
+            if to_update is None:
+                to_update = type_col.find_one({'_id': ObjectId(schema_id)})
+                if to_update is None:
+                    # restore dump
+                    self._restore_dump(backup_dir_path=backup_dir_path,
+                                       mongo_admin_user=mongo_admin_user,
+                                       mongo_admin_password=mongo_admin_password,
+                                       mongo_path=mongo_path)
+                    self._error('Trying to update the content of ' + schema_id + ' but it cannot be found')
+                else:
+                    type_col.update({'_id': ObjectId(schema_id)}, {"$set": payload}, upsert=False)
+
+        # XMLDATA CHANGES:
+        print "Updating xml_data..."
+        print "Adding status property to all records (Active by default)..."
+        xml_data_col.update({}, {"$set": {"status": 'active'}}, upsert=False, multi=True)
+        print "Set ispublished property to true for all records..."
+        xml_data_col.update({}, {"$set": {"ispublished": True}}, upsert=False, multi=True)
+        print "Adding lastmodificationdate/oai_datestamp to records..."
+        # find all meta_schema of the collection
+        cursor = xml_data_col.find()
+        # Browse xml_data collection
+        for result in cursor:
+            # xml data has a publication date
+            if 'publicationdate' in result:
+                publication_date = result['publicationdate']
+                # set last modification date and oai_datestamp to publication date
+                payload = {'lastmodificationdate': publication_date, 'oai_datestamp': publication_date}
+                xml_data_col.update({'_id': result['_id']}, {"$set": payload}, upsert=False)
+            else:
+                # set last modification date to datetime.MIN
+                generation_time = result['_id'].generation_time
+                payload = {'lastmodificationdate': generation_time,
+                           'publicationdate': generation_time,
+                           'oai_datestamp': generation_time}
+                xml_data_col.update({'_id': result['_id']}, {"$set": payload}, upsert=False)
+
+        # FORM DATA UNIQUE NAMES
+        self._resolve_duplicate_names(form_data_col)
+
+        # BLOB Metadata
+        self._update_blob_metadata(db)
+
+        # CLEAN THE DATABASE
+        print "*** CLEAN THE DATABASE ***"
+        # remove elements from Form_data (not used in 1.4)
+        print "Removing elements from form_data collection..."
+        form_data_col.update({}, {"$unset": {"elements": 1}}, multi=True)
+        # drop form_element collection (not used in 1.4)
+        print "Dropping form_element collection..."
+        db.drop_collection('form_element')
+        # drop xml_element collection (not used in 1.4)
+        print "Dropping xml_element collection..."
+        db.drop_collection('x_m_l_element')
+        # drop meta_schema collection (not used in 1.4)
+        print "Dropping meta_schema collection..."
+        db.drop_collection('meta_schema')
+
+    def migrate_1_4_to_1_5(self, db):
+        """APPLIES CHANGES FROM 1.4 TO 1.5
+
+        :param db:
+        :return:
+        """
+        print "STARTING MIGRATION FROM 1.4 to 1.5"
+        # GET COLLECTIONS NEEDED FOR MIGRATION
+        xml_data_col = db['xmldata']
+
+        # METASCHEMA COLLECTION REMOVED:
+        # NEED TO UPDATE THE CONTENT OF TEMPLATES/TYPES
+        print "Updating data with xml golden copy..."
+
+        # find all meta_schema of the collection
+        cursor = xml_data_col.find()
+
+        # Browse data collection
+        for result in cursor:
+            # get the data id
+            data_id = result['_id']
+            if 'xml_file' not in result:
+                print "Update xml content of record: " + str(data_id)
+                # get the template/type id
+                json_content = result['content']
+                # create a payload to update the data
+                payload = {'xml_file': unparse(json_content)}
+
+                # update the data
+                xml_data_col.update({'_id': ObjectId(data_id)}, {"$set": payload}, upsert=False)
+            else:
+                print "Xml content already present for record: " + str(data_id)
 
 
 def _get_mongo_connection_info():

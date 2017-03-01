@@ -40,7 +40,7 @@ def validate_xml_schema(xsd_tree):
             xsd_string = etree.tostring(xsd_tree)
             message = {'xsd_string': xsd_string}
             message = json.dumps(message)
-            send_message(message)
+            error = send_message(message)
         except Exception, e:
             print e.message
             error = _lxml_validate_xsd(xsd_tree)
@@ -65,7 +65,7 @@ def validate_xml_data(xsd_tree, xml_tree):
             xsd_string = etree.tostring(xsd_tree)
             message = {'xsd_string': xsd_string, 'xml_string': pretty_XML_string}
             message = json.dumps(message)
-            send_message(message)
+            error = send_message(message)
         except Exception, e:
             print e.message
             error = _lxml_validate_xml(xsd_tree, etree.parse(StringIO(pretty_XML_string)))

@@ -24,7 +24,7 @@ import os
 from django.core.urlresolvers import reverse_lazy
 from mongoengine import connect
 
-VERSION = "1.4"
+VERSION = "1.5_rc1"
 
 FORCE_SCRIPT_NAME = ""
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -225,11 +225,11 @@ INSTALLED_APPS = (
     'rest_framework',
     'rest_framework_swagger',
     'oauth2_provider',
-    'admin_mdcs',
     'api',
     'curate',
     'exporter',
     'explore',
+    'admin_mdcs',
     'compose',
     'modules',
     'user_dashboard',

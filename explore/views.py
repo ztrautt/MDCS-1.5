@@ -15,6 +15,8 @@
 ################################################################################
 
 from django.http import HttpResponse
+from django.http.response import HttpResponseBadRequest
+from rest_framework import status
 from django.template import RequestContext, loader, Context
 from django.shortcuts import redirect
 from django.conf import settings
@@ -24,7 +26,10 @@ from cStringIO import StringIO
 import zipfile
 import lxml.etree as etree
 import os
+from collections import OrderedDict
 import json
+import requests
+from bson.objectid import ObjectId
 from explore.forms import *
 from exporter import get_exporter
 from io import BytesIO
@@ -194,13 +199,12 @@ def explore_results(request):
 ################################################################################
 @permission_required(content_type=RIGHTS.explore_content_type, permission=RIGHTS.explore_access, login_url='/login')
 def explore_all_results(request):
-    template_id = request.GET['id']
-
     if 'HTTPS' in request.META['SERVER_PROTOCOL']:
         protocol = "https"
     else:
         protocol = "http"
 
+    template_id = request.GET['id']
     request.session['queryExplore'] = {"schema": template_id}
     json_instances = [Instance(name="Local", protocol=protocol, address=request.META['REMOTE_ADDR'], port=request.META['SERVER_PORT'], access_token="token", refresh_token="token").to_json()]
     request.session['instancesExplore'] = json_instances
@@ -280,6 +284,50 @@ def explore_detail_result(request) :
         return HttpResponse(template.render(context))
 
 
+@permission_required(content_type=RIGHTS.explore_content_type, permission=RIGHTS.explore_access, login_url='/login')
+def explore_detail_remote(request):
+    page = loader.get_template('explore/explore_detail_results.html')
+
+    # get parameters
+    data_id = request.GET['id']
+    remote_name = request.GET['remote']
+
+    # get remote instance
+    instance = Instance.objects.get(name=remote_name)
+    url_remote = instance.protocol + "://" + instance.address + ":" + str(instance.port)
+    header = {'Authorization': 'Bearer ' + instance.access_token}
+
+    # get xml_data from remote
+    data = {"id": data_id}
+    url = url_remote + '/rest/data/select'
+    result = requests.get(url, params=data, headers=header)
+
+    # check returned status
+    if result.status_code == status.HTTP_200_OK:
+        # serialize text to xml data
+        xml_data = json.loads(result.text)
+
+        # get template from remote
+        template_id = xml_data['schema']
+        data = {"id": template_id}
+        url = url_remote + '/rest/templates/select'
+        result = requests.get(url, params=data, headers=header)
+
+        # check returned status
+        if result.status_code == status.HTTP_200_OK:
+            # serialize text to template
+            template = json.loads(result.text)
+            context = _create_context_detail_view(request, xml_data, template)
+            return HttpResponse(page.render(context))
+
+    context = RequestContext(request, {
+        'XMLHolder': "Error occurred during page load",
+        'title': "Error"
+    })
+
+    return HttpResponseBadRequest(page.render(context))
+
+
 ################################################################################
 #
 # Function Name: explore_detail_result_keyword
@@ -309,30 +357,40 @@ def explore_detail_result_keyword(request) :
 @permission_required(content_type=RIGHTS.explore_content_type, permission=RIGHTS.explore_access, login_url='/login')
 def explore_detail_result_process(request):
     result_id = request.GET['id']
-    xmlString = XMLdata.get(result_id)
-    schemaId = xmlString['schema']
+    xml_data = XMLdata.get(result_id)
+    schema_id = xml_data['schema']
     if 'title' in request.GET:
-        title = request.GET['title']
-    else:
-        title = xmlString['title']
-    xmlString = XMLdata.unparse(xmlString['content']).encode('utf-8')
+        xml_data['title'] = request.GET['title']
+
+    schema = Template.objects.get(pk=schema_id)
+    return _create_context_detail_view(request, xml_data, schema)
+
+
+def _create_context_detail_view(request, xml_data, template):
+    title = xml_data['title']
+
+    if 'xml_file' in xml_data:
+        xmlString = xml_data['xml_file']
+    elif 'content' in xml_data:
+        xmlString = xml_data['content']
+    xmlString = xmlString.encode('utf-8')
+
     xsltPath = os.path.join(settings.SITE_ROOT, 'static', 'resources', 'xsl', 'xml2html.xsl')
     xslt = etree.parse(xsltPath)
     transform = etree.XSLT(xslt)
 
-    #Check if a custom detailed result XSLT has to be used
+    # Check if a custom detailed result XSLT has to be used
     try:
-        if (xmlString != ""):
+        if xmlString != "":
             dom = etree.fromstring(str(xmlString))
-            schema = Template.objects.get(pk=schemaId)
-            if schema.ResultXsltDetailed:
-                shortXslt = etree.parse(BytesIO(schema.ResultXsltDetailed.content.encode('utf-8')))
+            if template.ResultXsltDetailed:
+                shortXslt = etree.parse(BytesIO(template.ResultXsltDetailed.content.encode('utf-8')))
                 shortTransform = etree.XSLT(shortXslt)
                 newdom = shortTransform(dom)
             else:
                 newdom = transform(dom)
     except Exception, e:
-        #We use the default one
+        # We use the default one
         newdom = transform(dom)
 
     result = str(newdom)
@@ -360,12 +418,12 @@ def start_export(request):
         listExporter = request.POST.getlist('my_exporters')
         instances = request.session['instancesExplore']
         listId = request.session['listIdToExport']
-        xmlResults = []
         #Creation of ZIP file
         in_memory = StringIO()
         zip = zipfile.ZipFile(in_memory, "a")
         is_many_inst = len(instances) > 1
         for instance in instances:
+            xmlResults = []
             #Retrieve data
             sessionName = "resultsExplore" + json.loads(instance)['name']
             results = request.session[sessionName]
@@ -403,7 +461,7 @@ def start_export(request):
         #ZIP file to be downloaded
         in_memory.seek(0)
         response = HttpResponse(in_memory.read())
-        response["Content-Disposition"] = "attachment; filename=Results.zip"
+        response["Content-Disposition"] = "attachment; filename=Query_Results.zip"
         response['Content-Type'] = 'application/x-zip'
         request.session['listIdToExport'] = ''
 
@@ -411,11 +469,11 @@ def start_export(request):
     else:
         # We retrieve the result_id for each file the user wants to export
         listId = request.GET.getlist('listId[]')
+        remote_instance_selected = json.loads(request.GET['remote_instance_selected'])
         request.session['listIdToExport'] = listId
 
         # Get all schemaId from the listId
-        listSchemas = XMLdata.getByIDsAndDistinctBy(listId, "schema")
-
+        listSchemas = [request.session['exploreCurrentTemplateID']]
         export_form = ExportForm(listSchemas)
 
         upload_xslt_Form = UploadXSLTForm(listSchemas)

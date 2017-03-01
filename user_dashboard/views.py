@@ -351,9 +351,9 @@ def dashboard_detail_record(request):
         xml_string = XMLdata.get(record_id)
         title = xml_string['title']
         schema_id = xml_string['schema']
-        xml_string = XMLdata.unparse(xml_string['content']).encode('utf-8')
+        xml_string = xml_string['xml_file'].encode('utf-8')
     else:
-        raise Exception("Unknow record type: " + str(record_type))
+        raise Exception("Unknown record type: " + str(record_type))
 
     xslt_path = os.path.join(settings.SITE_ROOT, 'static', 'resources', 'xsl', 'xml2html.xsl')
     xslt = etree.parse(xslt_path)

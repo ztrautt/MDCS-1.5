@@ -103,8 +103,7 @@ def curate_edit_data(request):
     try:
         xml_data_id = request.GET['id']
         xml_data = XMLdata.get(xml_data_id)
-        json_content = xml_data['content']
-        xml_content = XMLdata.unparse(json_content)
+        xml_content = xml_data['xml_file']
         request.session['curate_edit'] = True
         request.session['currentTemplateID'] = xml_data['schema']
         # remove previously created forms when editing a new one
@@ -465,7 +464,7 @@ def save_xml_data_to_db(request):
         if form_data.xml_data_id is not None:
             XMLdata.update_content(
                 form_data.xml_data_id,
-                xml_string,
+                content=xml_string,
                 title=form.data['title']
             )
             #Specific MDCS

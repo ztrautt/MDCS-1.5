@@ -14,3 +14,4 @@ redis==2.10.5
 celery==3.1.23
 django-password-policies==0.4.1
 psutil==4.3.0
+pysha3==1.0.2

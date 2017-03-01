@@ -267,7 +267,7 @@ def explore(request):
     
     if dataformat is None or dataformat == "xml":
         for jsonDoc in jsonData:
-            jsonDoc['content'] = XMLdata.unparse(jsonDoc['content'])
+            jsonDoc['content'] = jsonDoc['xml_file']
         serializer = jsonDataSerializer(jsonData)
         return Response(serializer.data, status=status.HTTP_200_OK)
     elif dataformat == "json":
@@ -326,7 +326,7 @@ def explore_detail(request):
         
             if dataformat is None or dataformat == "xml":
                 for jsonDoc in jsonData:
-                    jsonDoc['content'] = XMLdata.unparse(jsonDoc['content'])
+                    jsonDoc['content'] = jsonDoc['xml_file']
                 serializer = jsonDataSerializer(jsonData)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             elif dataformat == "json":
@@ -378,7 +378,7 @@ def explore_detail_data_download(request):
             filename = os.path.splitext(jsonData['title'])[0]
 
             if dataformat is None or dataformat == "xml":
-                jsonData['content'] = XMLdata.unparse(jsonData['content'])
+                jsonData['content'] = jsonData['xml_file']
                 contentEncoded = jsonData['content'].encode('utf-8')
                 fileObj = StringIO(contentEncoded)
                 response = HttpResponse(fileObj, content_type='application/xml')
@@ -479,18 +479,18 @@ def query_by_example(request):
 
     Note: {"query": json.dumps({"content.root.property1.value":"xxx","schema":"id"})}
     """
-         
+
     dataformat = None
     if 'dataformat' in request.DATA:
         dataformat = request.DATA['dataformat']
-    
+
     qSerializer = querySerializer(data=request.DATA)
     if qSerializer.is_valid():
         if 'repositories' in request.DATA:
             instanceResults = []
             repositories = request.DATA['repositories'].strip().split(",")
             if len(repositories) == 0:
-                content = {'message':'Repositories keyword found but the list is empty.'}
+                content = {'message': 'Repositories keyword found but the list is empty.'}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
             else:
                 instances = []
@@ -503,58 +503,108 @@ def query_by_example(request):
                             instance = Instance.objects.get(name=repository)
                             instances.append(instance)
                         except:
-                            content = {'message':'Unknown repository.'}
+                            content = {'message': 'Unknown repository.'}
                             return Response(content, status=status.HTTP_400_BAD_REQUEST)
                 if local:
                     try:
                         query = json.loads(request.DATA['query'])
                         manageRegexInAPI(query)
-                        instanceResults = instanceResults + XMLdata.executeQueryFullResult(query)                        
+                        instanceResults = instanceResults + XMLdata.executeQueryFullResult(query)
                     except:
                         content = {'message': 'Bad query: use the following format {"element":"value"}'}
                         return Response(content, status=status.HTTP_400_BAD_REQUEST)
                 for instance in instances:
-                    url = instance.protocol + "://" + instance.address + ":" + str(instance.port) + "/rest/explore/query-by-example"   
-                    query = request.DATA['query']              
-                    data = {"query":query}
+                    url = instance.protocol + "://" + instance.address + ":" + str(
+                        instance.port) + "/rest/explore/query-by-example"
+
+                    # if remote, the schema id will never match so should be removed
+                    query = json.loads(request.DATA['query'])
+                    if 'schema' in query:
+                        del query['schema']
+                    data = {"query": json.dumps(query)}
+
+                    template_hash = request.QUERY_PARAMS.get('template_hash', None)
+                    param = {}
+                    if template_hash is not None:
+                        param = {'template_hash': template_hash}
+
                     headers = {'Authorization': 'Bearer ' + instance['access_token']}
-                    r = requests.post(url, data=data, headers=headers)
+                    r = requests.post(url, data=data, params=param, headers=headers)
                     result = r.text
-                    instanceResults = instanceResults + json.loads(result,object_pairs_hook=OrderedDict)
-            
-                if dataformat is None or dataformat == "xml":
-                    for jsonDoc in instanceResults:
-                        jsonDoc['content'] = XMLdata.unparse(jsonDoc['content'])
-                    serializer = jsonDataSerializer(instanceResults)
-                    return Response(serializer.data, status=status.HTTP_200_OK)
-                elif dataformat == "json":
+                    instanceResults = instanceResults + json.loads(result, object_pairs_hook=OrderedDict)
+
+                if dataformat is None or dataformat == "xml" or dataformat == "json":
+                    if dataformat is None or dataformat == "xml":
+                        for jsonDoc in instanceResults:
+                            jsonDoc['content'] = jsonDoc['xml_file']
+
+                    for item in instanceResults:
+                        schema = Template.objects.get(pk=item['schema'])
+                        item.update({'schema_title': schema.title})
+
                     serializer = jsonDataSerializer(instanceResults)
                     return Response(serializer.data, status=status.HTTP_200_OK)
                 else:
-                    content = {'message':'The specified format is not accepted.'}
+                    content = {'message': 'The specified format is not accepted.'}
                     return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
         else:
             try:
                 query = json.loads(request.DATA['query'])
+                template_hash = request.QUERY_PARAMS.get('template_hash', None)
+
+                # get template's id matching the hash if needed
+                if template_hash is not None:
+                    template_list = Template.objects(hash=template_hash)
+                    if len(template_list) > 0:
+                        template_id_list = [str(template.id) for template in template_list]
+                        if len(template_id_list) > 0:
+                            query.update({'schema': {'$in': template_id_list}})
+
                 manageRegexInAPI(query)
                 results = XMLdata.executeQueryFullResult(query)
-            
-                if dataformat is None or dataformat == "xml":
-                    for jsonDoc in results:
-                        jsonDoc['content'] = XMLdata.unparse(jsonDoc['content'])
-                    serializer = jsonDataSerializer(results)
-                    return Response(serializer.data, status=status.HTTP_200_OK)
-                elif dataformat == "json":
+
+                if dataformat is None or dataformat == "xml" or dataformat == "json":
+                    if dataformat is None or dataformat == "xml":
+                        for jsonDoc in results:
+                            jsonDoc['content'] = jsonDoc['xml_file']
+
+                    for item in results:
+                        schema = Template.objects.get(pk=item['schema'])
+                        item.update({'schema_title': schema.title})
+
                     serializer = jsonDataSerializer(results)
                     return Response(serializer.data, status=status.HTTP_200_OK)
                 else:
                     content = {'message': 'The specified format is not accepted.'}
                     return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
             except:
                 content = {'message': 'Bad query: use the following format {"element":"value"}'}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
-        
+
     return Response(qSerializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@api_staff_member_required()
+def select_xml_data(request):
+    """
+    GET /rest/data/select?id=value
+    """
+    xml_data_id = request.QUERY_PARAMS.get('id', None)
+    if xml_data_id is not None:
+        try:
+            xml_data = XMLdata.get(xml_data_id)
+            xml_data['content'] = xml_data['xml_file']
+            serializer = jsonDataSerializer(xml_data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            content = {'message': e.message}
+            return Response(content, status=status.HTTP_404_NOT_FOUND)
+    else:
+        content = {'message': 'No parameters given.'}
+        return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
 
 ################################################################################
@@ -2047,7 +2097,108 @@ def blob(request):
         except:
             content = {'message': 'blob parameter not found'}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
-    
+
+
+################################################################################
+#
+# Function Name: delete_blob(request)
+# Inputs:        request -
+# Outputs:
+# Exceptions:    None
+# Description:   Delete a file from its handle
+#
+################################################################################
+@api_view(['DELETE'])
+def delete_blob(request):
+    """
+    GET /rest/blob/delete?id=id
+
+    Required:
+    id: string (ObjectId)
+
+    """
+    if request.method == 'DELETE':
+        blob_id = request.QUERY_PARAMS.getlist('id', [])
+        if len(blob_id) == 0:
+            content = {'message': 'No id provided.'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        elif len(blob_id) == 1:
+            blob_id = blob_id[0].split(',')
+
+        try:
+            bh_factory = BLOBHosterFactory(BLOB_HOSTER,
+                                           BLOB_HOSTER_URI,
+                                           BLOB_HOSTER_USER,
+                                           BLOB_HOSTER_PSWD,
+                                           MDCS_URI)
+            blob_hoster = bh_factory.createBLOBHoster()
+            try:
+                list_blob = []
+                for id in blob_id:
+                    path = '/rest/blob/delete?id='+id
+                    blob = blob_hoster.get(path)
+                    if str(request.user.id) == blob.metadata['iduser'] or request.user.is_staff:
+                        list_blob.append(path)
+                    else:
+                        content = {'message': 'You don\'t have the right to delete this BLOB: '+id}
+                        return Response(content, status=status.HTTP_401_UNAUTHORIZED)
+
+                for blob in list_blob:
+                    blob_hoster.delete(blob)
+
+                content = {'message': 'BLOB deleted.'}
+                return Response(content, status=status.HTTP_200_OK)
+            except:
+                content = {'message': 'No file could be found with the given id.'}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
+        except:
+            content = {'message': 'Something went wrong with BLOB deletion.'}
+            return Response(content, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+################################################################################
+#
+# Function Name: list_blob(request)
+# Inputs:        request -
+# Outputs:
+# Exceptions:    None
+# Description:   Get a file from its handle
+#
+################################################################################
+@api_view(['GET', 'POST'])
+def list_blob(request):
+    """
+    GET  /rest/blob/list
+
+    POST /rest/blob/list
+    """
+    try:
+        bh_factory = BLOBHosterFactory(BLOB_HOSTER,
+                                       BLOB_HOSTER_URI,
+                                       BLOB_HOSTER_USER,
+                                       BLOB_HOSTER_PSWD,
+                                       MDCS_URI)
+        blob_hoster = bh_factory.createBLOBHoster()
+        blob_list = blob_hoster.find("", None) if request.user.is_staff else blob_hoster.find("metadata.iduser", str(request.user.id))
+        files = _get_list_files(blob_list, request.user.is_staff)
+        return Response(files, status=status.HTTP_200_OK)
+    except:
+        content = {'message': 'Something went wrong while listing the BLOB.'}
+        return Response(content, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def _get_list_files(list_blob, is_staff):
+    files = []
+    for grid in list_blob:
+        item = {'name': grid.name,
+                'id': str(grid._id),
+                'uploadDate': grid.upload_date,
+                }
+        if is_staff:
+            user = User.objects.get(pk=grid.metadata['iduser'])
+            item['user'] = user.username
+        files.append(item)
+    return files
         
 ################################################################################
 #
@@ -2283,7 +2434,7 @@ def export(request):
 
             #Retrieve the XML content
             for file in files:
-                xmlStr = XMLdata.unparse(file['content'])
+                xmlStr = file['xml_file']
                 dataXML.append({'title':file['title'], 'content': str(xmlStr)})
 
             #Transformation

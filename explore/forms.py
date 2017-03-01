@@ -29,17 +29,23 @@ class ExportForm(forms.Form):
     my_exporters_disabled = ""
 
     EXPORT_OPTIONS = []
+
     def __init__(self, templateIds=[]):
+        """
+        :param templateIds:
+        """
         self.EXPORT_OPTIONS = []
         self.EXPORT_OPTIONS_DISABLED = []
+
         dictExporters = []
+        mutualExporters = []
+        diffExporters = []
+
         #We retrieve exporters for those templates
         templates = Template.objects(pk__in=templateIds)
         for template in templates:
             dictExporters.append(set(template.exporters))
 
-        mutualExporters = []
-        diffExporters = []
         if len(dictExporters) > 0:
             mutualExporters = set.intersection(*dictExporters)
 
@@ -48,10 +54,10 @@ class ExportForm(forms.Form):
 
         for exporter in mutualExporters:
             if exporter.name != 'XSLT':
-                #We add them
-                self.EXPORT_OPTIONS.append((exporter.url,exporter.name))
+                # We add them
+                self.EXPORT_OPTIONS.append((exporter.url, exporter.name))
 
-        self.my_exporters_disabled = ", ".join(x.name for x in diffExporters if x.name !='XSLT')
+        self.my_exporters_disabled = ", ".join(x.name for x in diffExporters if x.name != 'XSLT')
 
         super(ExportForm, self).__init__()
         self.fields['my_exporters'].choices = []

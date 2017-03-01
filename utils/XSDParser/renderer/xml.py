@@ -70,13 +70,12 @@ class XmlRenderer(AbstractXmlRenderer):
             root_elem = SchemaElement.objects().get(pk=root_elem_id)
             root_name = root_elem.options['name']
 
-            if 'xmlns' in root_elem.options and root_elem.options['xmlns'] is not None:
-                xmlns = ' xmlns="{}"'.format(root_elem.options['xmlns'])
-                content[0] += xmlns
-
             if content[0] == "":  # Multi-root with element (no need for an element wrapper)
                 return content[1]
             else:  # Multi-root with complexType
+                if 'xmlns' in root_elem.options and root_elem.options['xmlns'] is not None:
+                    xmlns = ' xmlns="{}"'.format(root_elem.options['xmlns'])
+                    content[0] += xmlns
                 return self._render_xml(root_name, content[0], content[1])
         else:
             message = 'render: ' + self.data.tag + ' not handled'
@@ -447,6 +446,8 @@ class XmlRenderer(AbstractXmlRenderer):
                     tmp_content[2] = self.render_module(child)[1]
                 else:
                     tmp_content[1] = self.render_module(child)[1]
+            elif child.tag == 'choice':
+                tmp_content = self.render_choice(child)
             else:
                 message = 'render_simple_type: ' + child.tag + ' not handled'
                 self.warnings.append(message)

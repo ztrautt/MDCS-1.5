@@ -2,10 +2,9 @@ from django.template import Template, Variable, TemplateSyntaxError
 from django import template
 import os
 from django.conf import settings
-import xmltodict
 import lxml.etree as etree
 
-from mgi.models import XMLdata
+from mgi.models import unparse
 
 register = template.Library()
 
@@ -36,7 +35,7 @@ def render_xml_as_html(value):
         xsltPath = os.path.join(settings.SITE_ROOT, 'static', 'resources', 'xsl', 'xml2html.xsl')
         xslt = etree.parse(xsltPath)
         transform = etree.XSLT(xslt)
-        xmlString = XMLdata.unparse(dict)
+        xmlString = unparse(dict)
         if (xmlString != ""):
             dom = etree.XML(xmlString.encode('utf-8'))
             newdom = transform(dom)

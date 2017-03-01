@@ -186,14 +186,13 @@ def lookup_occurs(element, xml_tree, full_path, edit_data_tree, download_enabled
     # get target namespace prefix if one declared
     xml_tree_str = etree.tostring(xml_tree)
     namespaces = common.get_namespaces(BytesIO(str(xml_tree_str)))
-    target_namespace_prefix = common.get_target_namespace_prefix(namespaces, xml_tree)
-    if target_namespace_prefix != '':
-        target_namespace_prefix += ":"
+    target_namespace, target_namespace_prefix = common.get_target_namespace(namespaces, xml_tree)
 
     # check if xpaths find a match in the document
     for xpath in xpaths:
-        edit_elements = edit_data_tree.xpath(full_path + '/' + target_namespace_prefix + xpath['name'],
-                                             namespaces=namespaces)
+        element_path = get_xml_xpath(xml_tree, full_path, "element", xpath['name'], target_namespace,
+                                     target_namespace_prefix)
+        edit_elements = edit_data_tree.xpath(element_path, namespaces=namespaces)
         elements_found.extend(edit_elements)
 
     return elements_found
@@ -313,7 +312,7 @@ def get_xml_element_data(xsd_element, xml_element):
     if xsd_element.tag == prefix + "element":
         # leaf: get the value
         if len(list(xml_element)) == 0:
-            if xml_element.text is not None:
+            if hasattr(xml_element, 'text') and xml_element.text is not None:
                 reload_data = xml_element.text
             else:  # if xml_element.text is None
                 reload_data = ''
@@ -324,7 +323,7 @@ def get_xml_element_data(xsd_element, xml_element):
     elif xsd_element.tag == prefix + "complexType" or xsd_element.tag == prefix + "simpleType":
         # leaf: get the value
         if len(list(xml_element)) == 0:
-            if xml_element.text is not None:
+            if hasattr(xml_element, 'text') and xml_element.text is not None:
                 reload_data = xml_element.text
             else:  # xml_element.text is None
                 reload_data = ''
@@ -738,6 +737,53 @@ def get_extensions(xml_doc_tree, base_type_name):
     return custom_type_extensions
 
 
+def get_xml_xpath(xml_tree, xml_xpath, element_tag, element_name, target_namespace=None, target_namespace_prefix=None,
+                  is_ref=False):
+    """Returns the xpath of an element
+
+    :param xml_tree:
+    :param xml_xpath:
+    :param element_tag:
+    :param element_name:
+    :param target_namespace:
+    :param target_namespace_prefix:
+    :param is_ref:
+    :return:
+    """
+    # XML xpath:/root/element
+    if element_tag == 'element':
+        if target_namespace is not None:
+            if target_namespace_prefix != '':
+                if get_element_form_default(xml_tree) == "qualified":
+                    xml_xpath += '/{0}:{1}'.format(target_namespace_prefix, element_name)
+                elif is_ref:
+                    xml_xpath += '/{0}:{1}'.format(target_namespace_prefix, element_name)
+                elif "{0}:".format(target_namespace_prefix) in xml_xpath:
+                    xml_xpath += '/{0}'.format(element_name)
+                else:
+                    xml_xpath += '/{0}:{1}'.format(target_namespace_prefix, element_name)
+            else:
+                xml_xpath += '/*[local-name()="{0}"]'.format(element_name)
+        else:
+            xml_xpath += "/{0}".format(element_name)
+    elif element_tag == 'attribute':
+        if target_namespace is not None:
+            if target_namespace_prefix != '':
+                if get_attribute_form_default(xml_tree) == "qualified":
+                    xml_xpath += '/@{0}:{1}'.format(target_namespace_prefix, element_name)
+                elif is_ref:
+                    xml_xpath += '/@{0}:{1}'.format(target_namespace_prefix, element_name)
+                elif "{0}:".format(target_namespace_prefix) in xml_xpath:
+                    xml_xpath += '/@{0}'.format(element_name)
+                else:
+                    xml_xpath += '/@{0}:{1}'.format(target_namespace_prefix, element_name)
+            else:
+                xml_xpath += '/@*[local-name()="{0}"]'.format(element_name)
+        else:
+            xml_xpath += "/@{0}".format(element_name)
+
+    return xml_xpath
+
 ##################################################
 # Part II: Schema parsing
 ##################################################
@@ -785,7 +831,6 @@ def generate_form(request, xsd_doc_data, xml_doc_data=None, config=None):
         rendered HTMl form
     """
 
-    request.session['implicit_extension'] = True
     load_config(request, config)
 
     # flatten the includes
@@ -849,6 +894,7 @@ def generate_form(request, xsd_doc_data, xml_doc_data=None, config=None):
                                                xml_doc_tree,
                                                edit_data_tree=edit_data_tree)
         else:  # len(elements) == 0 (no root element)
+            # fixed always false because fixed cannot be on the type
             # TODO: does it make sense to get all simple types too?
             complex_types = xml_doc_tree.findall("./{0}complexType".format(LXML_SCHEMA_NAMESPACE))
             if len(complex_types) > 0:
@@ -917,7 +963,7 @@ def generate_element(request, element, xml_tree, choice_info=None, full_path="",
     # check if the element has a module
     _has_module = has_module(request, element)
     # checks if the module manage the occurrences by itself
-    _is_multiple = is_module_multiple(request, element)
+    _is_multiple = is_module_multiple(request, element) if _has_module else False
 
     # FIXME see if we can avoid these basic initialization
     # FIXME this is not necessarily true (see attributes)
@@ -958,8 +1004,10 @@ def generate_element(request, element, xml_tree, choice_info=None, full_path="",
         'children': []
     }
 
+    is_ref = False
     # get the name of the element, go find the reference if there's one
     if 'ref' in element.attrib:  # type is a reference included in the document
+        is_ref = True
         ref = element.attrib['ref']
         download_enabled = request.session['PARSER_DOWNLOAD_DEPENDENCIES']
         ref_element, xml_tree, schema_location = get_ref_element(xml_tree, ref, namespaces,
@@ -984,34 +1032,8 @@ def generate_element(request, element, xml_tree, choice_info=None, full_path="",
     namespaces = common.get_namespaces(BytesIO(str(xml_tree_str)))
     target_namespace, target_namespace_prefix = common.get_target_namespace(namespaces, xml_tree)
 
-    # build xpath
-    # XML xpath:/root/element
-    if element_tag == 'element':
-        if target_namespace is not None:
-            if target_namespace_prefix != '':
-                if get_element_form_default(xml_tree) == "qualified":
-                    full_path += '/{0}:{1}'.format(target_namespace_prefix, text_capitalized)
-                elif "{0}:".format(target_namespace_prefix) in full_path:
-                    full_path += '/{0}'.format(text_capitalized)
-                else:
-                    full_path += '/{0}:{1}'.format(target_namespace_prefix, text_capitalized)
-            else:
-                full_path += '/*[local-name()="{0}"]'.format(text_capitalized)
-        else:
-            full_path += "/{0}".format(text_capitalized)
-    elif element_tag == 'attribute':
-        if target_namespace is not None:
-            if target_namespace_prefix != '':
-                if get_attribute_form_default(xml_tree) == "qualified":
-                    full_path += '/@{0}:{1}'.format(target_namespace_prefix, text_capitalized)
-                elif "{0}:".format(target_namespace_prefix) in full_path:
-                    full_path += '/@{0}'.format(text_capitalized)
-                else:
-                    full_path += '/@{0}:{1}'.format(target_namespace_prefix, text_capitalized)
-            else:
-                full_path += '/@*[local-name()="{0}"]'.format(text_capitalized)
-        else:
-            full_path += "/@{0}".format(text_capitalized)
+    full_path = get_xml_xpath(xml_tree, full_path, element_tag, text_capitalized, target_namespace,
+                              target_namespace_prefix, is_ref)
 
     # print full_path
 
@@ -1197,6 +1219,13 @@ def generate_element(request, element, xml_tree, choice_info=None, full_path="",
                     # if the default attribute is present
                     default_value = element.attrib['default']
 
+                if 'fixed' in element.attrib:
+                    # if the fixed attribute is present
+                    is_fixed = True
+                    default_value = element.attrib['fixed']
+                else:
+                    is_fixed = False
+
                 default_value = default_value.strip()
 
                 if element_type is None:  # no complex/simple type
@@ -1216,7 +1245,7 @@ def generate_element(request, element, xml_tree, choice_info=None, full_path="",
                         },
                         'value': default_value
                     }
-                    db_elem_iter['children'].append(db_child)
+
                 else:  # complex/simple type
                     li_content += buttons
 
@@ -1225,19 +1254,25 @@ def generate_element(request, element, xml_tree, choice_info=None, full_path="",
                                                                     full_path=full_path + '[' + str(x + 1) + ']',
                                                                     edit_data_tree=edit_data_tree,
                                                                     default_value=default_value,
+                                                                    is_fixed=is_fixed,
                                                                     schema_location=schema_location)
 
                         li_content += complex_type_result[0]
-                        db_elem_iter['children'].append(complex_type_result[1])
+                        db_child = complex_type_result[1]
+
                     elif element_type.tag == "{0}simpleType".format(LXML_SCHEMA_NAMESPACE):
                         simple_type_result = generate_simple_type(request, element_type, xml_tree,
                                                                   full_path=full_path + '[' + str(x + 1) + ']',
                                                                   edit_data_tree=edit_data_tree,
                                                                   default_value=default_value,
+                                                                  is_fixed=is_fixed,
                                                                   schema_location=schema_location)
 
                         li_content += simple_type_result[0]
-                        db_elem_iter['children'].append(simple_type_result[1])
+                        db_child = simple_type_result[1]
+
+                db_child['options']['fixed'] = is_fixed
+                db_elem_iter['children'].append(db_child)
         else:
             li_content += buttons
 
@@ -1742,8 +1777,8 @@ def generate_choice(request, element, xml_tree, choice_info=None, full_path="", 
 
                     else:
                         # TODO: create prefix if no prefix?
-                        ns_prefix = target_namespace_prefix + ":" if target_namespace is not None else ""
-                        element_path = '{0}/{1}{2}'.format(full_path, ns_prefix, opt_label)
+                        element_path = get_xml_xpath(xml_tree, full_path, "element", opt_label, target_namespace,
+                                                     target_namespace_prefix)
                         if len(edit_data_tree.xpath(element_path, namespaces=namespaces)) != 0:
                             db_child['value'] = counter
                 element_result = generate_element(request, choiceChild, xml_tree,
@@ -1881,7 +1916,7 @@ def generate_choice_absent(request, element_id, config=None):
 
 
 def generate_simple_type(request, element, xml_tree, full_path, edit_data_tree=None,
-                         default_value=None, schema_location=None):
+                         default_value=None, is_fixed=False, schema_location=None, implicit_extension=True):
     """Generates a section of the form that represents an XML simple type
 
     Parameters:
@@ -1891,7 +1926,9 @@ def generate_simple_type(request, element, xml_tree, full_path, edit_data_tree=N
         full_path:
         edit_data_tree:
         default_value:
+        is_fixed:
         schema_location:
+        implicit_extension: True if implicit extensions should be considered
 
     Returns:
         HTML string representing a simple type
@@ -1935,9 +1972,8 @@ def generate_simple_type(request, element, xml_tree, full_path, edit_data_tree=N
 
         return form_string, db_element
 
-    # TODO: check that it's not already extending a base
     # check if the type has a name (can be referenced by an extension)
-    if 'name' in element.attrib and request.session['implicit_extension']:
+    if 'name' in element.attrib and implicit_extension:
         # check if types extend this one
         extensions = get_extensions(xml_tree, element.attrib['name'])
 
@@ -1945,7 +1981,8 @@ def generate_simple_type(request, element, xml_tree, full_path, edit_data_tree=N
         if len(extensions) > 0:
             # add the base type that can be rendered alone without extensions
             extensions.insert(0, element)
-            choice_content = generate_choice_extensions(request, extensions, xml_tree, None, full_path, edit_data_tree,
+            choice_content = generate_choice_extensions(request, extensions, xml_tree, None, full_path,
+                                                        edit_data_tree, default_value, is_fixed,
                                                         schema_location)
             form_string += choice_content[0]
             db_element['children'].append(choice_content[1])
@@ -1956,7 +1993,9 @@ def generate_simple_type(request, element, xml_tree, full_path, edit_data_tree=N
 
         if child.tag == "{0}restriction".format(LXML_SCHEMA_NAMESPACE):
             restriction = generate_restriction(request, child, xml_tree, full_path, edit_data_tree=edit_data_tree,
-                                               default_value=default_value, schema_location=schema_location)
+                                               default_value=default_value,
+                                               is_fixed=is_fixed,
+                                               schema_location=schema_location)
 
             form_string += restriction[0]
             db_child = restriction[1]
@@ -1993,8 +2032,8 @@ def generate_simple_type(request, element, xml_tree, full_path, edit_data_tree=N
     # return form_string
 
 
-def generate_complex_type(request, element, xml_tree, full_path, edit_data_tree=None, default_value='',
-                          schema_location=None):
+def generate_complex_type(request, element, xml_tree, full_path, edit_data_tree=None, default_value='', is_fixed=False,
+                          schema_location=None, implicit_extension=True):
     """Generates a section of the form that represents an XML complexType
 
     Parameters:
@@ -2004,7 +2043,9 @@ def generate_complex_type(request, element, xml_tree, full_path, edit_data_tree=
         full_path:
         edit_data_tree:
         default_value:
+        is_fixed:
         schema_location:
+        implicit_extension: True if implicit extensions should be considered
 
     Returns:
         HTML string representing a sequence
@@ -2064,9 +2105,8 @@ def generate_complex_type(request, element, xml_tree, full_path, edit_data_tree=
 
         return form_string, db_element
 
-    # TODO: check that it's not already extending a base
     # check if the type has a name (can be referenced by an extension)
-    if 'name' in element.attrib and request.session['implicit_extension']:
+    if 'name' in element.attrib and implicit_extension:
         # check if types extend this one
         extensions = get_extensions(xml_tree, element.attrib['name'])
 
@@ -2077,7 +2117,7 @@ def generate_complex_type(request, element, xml_tree, full_path, edit_data_tree=
                 extensions.insert(0, element)
 
             choice_content = generate_choice_extensions(request, extensions, xml_tree, None, full_path,
-                                                        edit_data_tree,
+                                                        edit_data_tree, default_value,
                                                         schema_location)
             form_string += choice_content[0]
             db_element['children'].append(choice_content[1])
@@ -2090,6 +2130,7 @@ def generate_complex_type(request, element, xml_tree, full_path, edit_data_tree=
                                                         full_path=full_path,
                                                         edit_data_tree=edit_data_tree,
                                                         default_value=default_value,
+                                                        is_fixed=is_fixed,
                                                         schema_location=schema_location)
 
         form_string += result_simple_content[0]
@@ -2149,7 +2190,7 @@ def generate_complex_type(request, element, xml_tree, full_path, edit_data_tree=
 
 
 def generate_choice_extensions(request, element, xml_tree, choice_info=None, full_path="",
-                               edit_data_tree=None, schema_location=None):
+                               edit_data_tree=None, default_value='', is_fixed=False, schema_location=None):
     """Generates a section of the form that represents an implicit extension
 
     Parameters:
@@ -2159,6 +2200,8 @@ def generate_choice_extensions(request, element, xml_tree, choice_info=None, ful
         choice_info: to keep track of branches to display (chosen ones) when going recursively down the tree
         full_path: XML xpath being built
         edit_data_tree: XML tree of data being edited
+        default_value:
+        is_fixed:
         schema_location:
 
     Returns:       HTML string representing a sequence
@@ -2218,7 +2261,6 @@ def generate_choice_extensions(request, element, xml_tree, choice_info=None, ful
 
         li_content = ''
 
-        request.session['implicit_extension'] = False
         for (counter, choiceChild) in enumerate(list(element)):
 
             if is_root:
@@ -2234,13 +2276,19 @@ def generate_choice_extensions(request, element, xml_tree, choice_info=None, ful
                     result = generate_complex_type(request, choiceChild, xml_tree,
                                                    full_path=full_path,
                                                    edit_data_tree=edit_data_tree,
-                                                   schema_location=schema_location)
+                                                   default_value=default_value,
+                                                   is_fixed=is_fixed,
+                                                   schema_location=schema_location,
+                                                   implicit_extension=False)
 
                 elif choiceChild.tag == "{0}simpleType".format(LXML_SCHEMA_NAMESPACE):
                     result = generate_simple_type(request, choiceChild, xml_tree,
                                                   full_path=full_path,
                                                   edit_data_tree=edit_data_tree,
-                                                  schema_location=schema_location)
+                                                  default_value=default_value,
+                                                  is_fixed=is_fixed,
+                                                  schema_location=schema_location,
+                                                  implicit_extension=False)
 
                 # Find the default element
                 if choiceChild.attrib.get('name') is not None:
@@ -2269,7 +2317,6 @@ def generate_choice_extensions(request, element, xml_tree, choice_info=None, ful
 
         db_element['children'].append(db_child)
 
-    request.session['implicit_extension'] = True
     # form_string += render_ul(ul_content, choice_id, chosen)
     return form_string, db_element
 
@@ -2417,7 +2464,7 @@ def generate_module(request, element, xsd_xpath=None, xml_xpath=None, xml_tree=N
 
 
 def generate_simple_content(request, element, xml_tree, full_path='', edit_data_tree=None, default_value='',
-                            schema_location=None):
+                            is_fixed=False, schema_location=None):
     """Generates a section of the form that represents an XML simple content
 
     Parameters:
@@ -2427,6 +2474,7 @@ def generate_simple_content(request, element, xml_tree, full_path='', edit_data_
         full_path:
         edit_data_tree:
         default_value:
+        is_fixed:
         schema_location:
 
     Returns:
@@ -2452,13 +2500,18 @@ def generate_simple_content(request, element, xml_tree, full_path='', edit_data_
         if child.tag == "{0}restriction".format(LXML_SCHEMA_NAMESPACE):
             restriction_result = generate_restriction(request, child, xml_tree, full_path,
                                                       edit_data_tree=edit_data_tree,
-                                                      default_value=default_value, schema_location=schema_location)
+                                                      default_value=default_value,
+                                                      is_fixed=is_fixed,
+                                                      schema_location=schema_location)
 
             form_string += restriction_result[0]
             db_element['children'].append(restriction_result[1])
         elif child.tag == "{0}extension".format(LXML_SCHEMA_NAMESPACE):
-            extension_result = generate_extension(request, child, xml_tree, full_path, edit_data_tree=edit_data_tree,
-                                                  default_value=default_value, schema_location=schema_location)
+            extension_result = generate_extension(request, child, xml_tree, full_path,
+                                                  edit_data_tree=edit_data_tree,
+                                                  default_value=default_value,
+                                                  is_fixed=is_fixed,
+                                                  schema_location=schema_location)
 
             form_string += extension_result[0]
             db_element['children'].append(extension_result[1])
@@ -2467,7 +2520,7 @@ def generate_simple_content(request, element, xml_tree, full_path='', edit_data_
 
 
 def generate_restriction(request, element, xml_tree, full_path="", edit_data_tree=None, default_value=None,
-                         schema_location=None):
+                         is_fixed=False, schema_location=None):
     """Generates a section of the form that represents an XML restriction
 
     Parameters:
@@ -2477,6 +2530,7 @@ def generate_restriction(request, element, xml_tree, full_path="", edit_data_tre
         full_path:
         edit_data_tree:
         default_value:
+        is_fixed:
         schema_location:
 
     Returns:
@@ -2488,7 +2542,8 @@ def generate_restriction(request, element, xml_tree, full_path="", edit_data_tre
     db_element = {
         'tag': 'restriction',
         'options': {
-            'base': element.attrib.get('base')  # TODO Change it to avoid having the namespace with it
+            'base': element.attrib.get('base'),  # TODO Change it to avoid having the namespace with it
+            'is_fixed': is_fixed,
         },
         'value': None,
         'children': []
@@ -2501,13 +2556,29 @@ def generate_restriction(request, element, xml_tree, full_path="", edit_data_tre
     if len(enumeration) > 0:
         option_list = []
 
-        if 'curate_edit' in request.session and request.session['curate_edit']:
+        if is_fixed:
+            # Fixed
+            for enum in enumeration:
+                db_child = {
+                    'tag': 'enumeration',
+                    'value': enum.attrib.get('value'),
+                }
+                if enum.attrib.get('value') == default_value:
+                    entry = (enum.attrib.get('value'), enum.attrib.get('value'), True)
+                    db_element['value'] = default_value
+                else:
+                    entry = (enum.attrib.get('value'), enum.attrib.get('value'), False)
+
+                option_list.append(entry)
+                db_element['children'].append(db_child)
+        elif 'curate_edit' in request.session and request.session['curate_edit']:
+            # Edition
             default_value = default_value if default_value is not None else ''
 
             for enum in enumeration:
                 db_child = {
                     'tag': 'enumeration',
-                    'value': enum.attrib.get('value')
+                    'value': enum.attrib.get('value'),
                 }
 
                 if default_value is not None and enum.attrib.get('value') == default_value:
@@ -2519,15 +2590,16 @@ def generate_restriction(request, element, xml_tree, full_path="", edit_data_tre
                 option_list.append(entry)
                 db_element['children'].append(db_child)
         else:
+            # New document
             for enum in enumeration:
                 db_child = {
                     'tag': 'enumeration',
-                    'value': enum.attrib.get('value')
+                    'value': enum.attrib.get('value'),
                 }
 
                 entry = (enum.attrib.get('value'), enum.attrib.get('value'), False)
-                option_list.append(entry)
 
+                option_list.append(entry)
                 db_element['children'].append(db_child)
 
             db_element['value'] = db_element['children'][0]['value']
@@ -2535,7 +2607,9 @@ def generate_restriction(request, element, xml_tree, full_path="", edit_data_tre
         simple_type = element.find('{0}simpleType'.format(LXML_SCHEMA_NAMESPACE))
         if simple_type is not None:
             simple_type_result = generate_simple_type(request, simple_type, xml_tree, full_path=full_path,
-                                                      edit_data_tree=edit_data_tree, default_value=default_value,
+                                                      edit_data_tree=edit_data_tree,
+                                                      default_value=default_value,
+                                                      is_fixed=is_fixed,
                                                       schema_location=schema_location)
 
             form_string += simple_type_result[0]
@@ -2548,7 +2622,7 @@ def generate_restriction(request, element, xml_tree, full_path="", edit_data_tre
             # form_string += render_input(default_value, '', '')
             db_child = {
                 'tag': 'input',
-                'value': default_value
+                'value': default_value,
             }
 
         db_element['children'].append(db_child)
@@ -2557,7 +2631,7 @@ def generate_restriction(request, element, xml_tree, full_path="", edit_data_tre
 
 
 def generate_extension(request, element, xml_tree, full_path="", edit_data_tree=None, default_value='',
-                       schema_location=None):
+                       is_fixed=False, schema_location=None):
     """Generates a section of the form that represents an XML extension
 
     Parameters:
@@ -2567,6 +2641,7 @@ def generate_extension(request, element, xml_tree, full_path="", edit_data_tree=
         full_path:
         edit_data_tree:
         default_value:
+        is_fixed:
         schema_location:
 
     Returns:
@@ -2581,8 +2656,6 @@ def generate_extension(request, element, xml_tree, full_path="", edit_data_tree=
     }
 
     remove_annotations(element)
-
-    request.session['implicit_extension'] = False
 
     ##################################################
     # Parsing attributes
@@ -2605,16 +2678,21 @@ def generate_extension(request, element, xml_tree, full_path="", edit_data_tree=
             db_element['children'].append(
                     {
                         'tag': 'input',
-                        'value': default_value
+                        'value': default_value,
+                        'options': {
+                            'fixed': is_fixed,
+                        }
                     }
             )
         else:  # not a built-in data type
+            # fixed not allowed for extensions with base complex type
             if base_type.tag == "{0}complexType".format(LXML_SCHEMA_NAMESPACE):
                 complex_type_result = generate_complex_type(request, base_type, xml_tree,
                                                             full_path=full_path,
                                                             edit_data_tree=edit_data_tree,
                                                             default_value=default_value,
-                                                            schema_location=schema_location)
+                                                            schema_location=schema_location,
+                                                            implicit_extension=False)
 
                 form_string += complex_type_result[0]
                 db_element['children'].append(complex_type_result[1])
@@ -2623,7 +2701,9 @@ def generate_extension(request, element, xml_tree, full_path="", edit_data_tree=
                                                           full_path=full_path,
                                                           edit_data_tree=edit_data_tree,
                                                           default_value=default_value,
-                                                          schema_location=schema_location)
+                                                          schema_location=schema_location,
+                                                          is_fixed=is_fixed,
+                                                          implicit_extension=False)
 
                 form_string += simple_type_result[0]
                 db_element['children'].append(simple_type_result[1])
@@ -2674,7 +2754,5 @@ def generate_extension(request, element, xml_tree, full_path="", edit_data_tree=
 
                 form_string += choice_result[0]
                 extended_element.append(choice_result[1])
-
-    request.session['implicit_extension'] = True
 
     return form_string, db_element

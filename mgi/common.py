@@ -38,9 +38,7 @@ def getValidityErrorsForMDCS(xmlTree, type):
     imports = xmlTree.findall("{}import".format(LXML_SCHEMA_NAMESPACE))
     # get the includes
     includes = xmlTree.findall("{}include".format(LXML_SCHEMA_NAMESPACE))
-    # get the elements
-    elements = xmlTree.findall("{}element".format(LXML_SCHEMA_NAMESPACE))
-    
+
     if len(imports) != 0 or len(includes) != 0:
         for el_import in imports:
             if 'schemaLocation' not in el_import.attrib:
@@ -52,19 +50,6 @@ def getValidityErrorsForMDCS(xmlTree, type):
                 errors.append("The attribute schemaLocation of include is required but missing.")
             elif ' ' in el_include.attrib['schemaLocation']:
                 errors.append("The use of namespace in include elements is not supported.")
-
-    # TargetNamespace test
-    root = xmlTree.getroot()
-    if 'targetNamespace' in root.attrib:
-        target_namespace = root.attrib['targetNamespace']
-        if target_namespace not in root.nsmap.values():
-            errors.append("The use of a targetNamespace without an associated prefix is not supported.")
-
-    # Templates Tests
-    # if type == "Template":
-    #     # Tests for templates
-    #     if len(elements) < 1:
-    #         errors.append("Only templates with at least one root element are supported.")
 
     # Types Tests
     if type == "Type":
@@ -261,6 +246,7 @@ def get_target_namespace(namespaces, xsd_tree):
         for prefix, url in namespaces.items():
             if url == target_namespace:
                 target_namespace_prefix = prefix
+                break
 
     return target_namespace, target_namespace_prefix
 

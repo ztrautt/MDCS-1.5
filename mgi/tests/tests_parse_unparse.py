@@ -13,7 +13,7 @@
 # Sponsor: National Institute of Standards and Technology (NIST)
 #
 ################################################################################
-from mgi.models import XMLdata
+from mgi.models import XMLdata, unparse
 from os.path import join
 import os
 from django.utils.importlib import import_module
@@ -42,7 +42,7 @@ class ParseUnparseTestSuite(RegressionTest):
             # test parsing
             xml_data = XMLdata(xml=data_content)
             # test unparsing
-            xml_string = XMLdata.unparse(xml_data.content['content'])
+            xml_string = unparse(xml_data.content['content'])
             self.assertEquals(_strip(data_content), _strip(xml_string))
 
     def test_parse_unparse_accent_attr(self):
@@ -51,7 +51,7 @@ class ParseUnparseTestSuite(RegressionTest):
             # test parsing
             xml_data = XMLdata(xml=data_content)
             # test unparsing
-            xml_string = XMLdata.unparse(xml_data.content['content'])
+            xml_string = unparse(xml_data.content['content'])
             self.assertEquals(_strip(data_content), _strip(xml_string))
 
     def test_parse_unparse_number(self):
@@ -60,7 +60,7 @@ class ParseUnparseTestSuite(RegressionTest):
             # test parsing
             xml_data = XMLdata(xml=data_content)
             # test unparsing
-            xml_string = XMLdata.unparse(xml_data.content['content'])
+            xml_string = unparse(xml_data.content['content'])
             self.assertEquals(_strip(data_content), _strip(xml_string))
 
     def test_parse_unparse_number_attr(self):
@@ -69,7 +69,7 @@ class ParseUnparseTestSuite(RegressionTest):
             # test parsing
             xml_data = XMLdata(xml=data_content)
             # test unparsing
-            xml_string = XMLdata.unparse(xml_data.content['content'])
+            xml_string = unparse(xml_data.content['content'])
             self.assertEquals(_strip(data_content), _strip(xml_string))
 
     def test_parse_unparse_list(self):
@@ -78,7 +78,7 @@ class ParseUnparseTestSuite(RegressionTest):
             # test parsing
             xml_data = XMLdata(xml=data_content)
             # test unparsing
-            xml_string = XMLdata.unparse(xml_data.content['content'])
+            xml_string = unparse(xml_data.content['content'])
             self.assertEquals(_strip(data_content), _strip(xml_string))
 
     def test_parse_unparse_test(self):
@@ -87,5 +87,5 @@ class ParseUnparseTestSuite(RegressionTest):
             # test parsing
             xml_data = XMLdata(xml=data_content)
             # test unparsing
-            xml_string = XMLdata.unparse(xml_data.content['content'])
+            xml_string = unparse(xml_data.content['content'])
             self.assertEquals(_strip(data_content), _strip(xml_string))
